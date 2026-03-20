@@ -31,3 +31,20 @@ __all__ = [
     "BeliefReasoner", "BeliefConfig", "Hypothesis", "EvidenceEvent",
     "ActiveEpistemology", "VoIConfig", "InformationGainMethod", "HypothesisDrivenActionSelector",
 ]
+
+# Phase G.5
+from .surgical_probes import (
+    SurgicalProbeSelector,
+    SurgicalProbeConfig,
+    ProbeType,
+    ProbeExperiment,
+    SurgicalProbing
+)
+
+__all__.extend([
+    "SurgicalProbeSelector",
+    "SurgicalProbeConfig",
+    "ProbeType",
+    "ProbeExperiment",
+    "SurgicalProbing"
+])
