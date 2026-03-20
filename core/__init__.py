@@ -5,6 +5,7 @@ Phase A: Governor + Resolution + Identity
 Phase B: Adaptation (learning from clamp events)
 Phase B.5: Strategy (deliberate mode selection)
 Phase C: Strategy Learning (rules → learned preferences)
+Phase D: Intent Engine (dynamic objectives → "wants")
 """
 
 from .governor import Governor, GovernorConfig, RegulationMode, ClampDiagnostics
@@ -24,6 +25,12 @@ from .strategy_learning import (
     ModeOutcome,
     LearningConfig,
     StrategyWithLearning
+)
+from .intent import (
+    IntentEngine,
+    IntentConfig,
+    SystemObjective,
+    IntentAwareStrategy
 )
 
 __all__ = [
@@ -53,4 +60,9 @@ __all__ = [
     "ModeOutcome",
     "LearningConfig",
     "StrategyWithLearning",
+    # Phase D
+    "IntentEngine",
+    "IntentConfig",
+    "SystemObjective",
+    "IntentAwareStrategy",
 ]
