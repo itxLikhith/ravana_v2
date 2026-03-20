@@ -47,7 +47,7 @@ from .environment import (
 from .predictive_world import (
     LearnedWorldModel,
     WorldModelConfig,
-    Prediction,
+    PredictedState,
     AnomalyEvent,
     FalseWorldTester,
 )
@@ -102,7 +102,7 @@ __all__ = [
     # Phase F
     "LearnedWorldModel",
     "WorldModelConfig",
-    "Prediction",
+    "PredictedState",
     "AnomalyEvent",
     "FalseWorldTester",
     # Phase F.5
