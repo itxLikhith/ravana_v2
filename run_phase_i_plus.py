@@ -142,10 +142,14 @@ EXAMPLES:
                 return float(obj)
             elif isinstance(obj, np.ndarray):
                 return obj.tolist()
+            elif isinstance(obj, np.bool_):
+                return bool(obj)
             elif isinstance(obj, dict):
                 return {k: convert(v) for k, v in obj.items()}
             elif isinstance(obj, (list, tuple)):
                 return [convert(item) for item in obj]
+            elif isinstance(obj, bool):
+                return bool(obj)
             return obj
         
         os.makedirs('results', exist_ok=True)
@@ -171,10 +175,14 @@ EXAMPLES:
                 return float(obj)
             elif isinstance(obj, np.ndarray):
                 return obj.tolist()
+            elif isinstance(obj, np.bool_):
+                return bool(obj)
             elif isinstance(obj, dict):
                 return {k: convert(v) for k, v in obj.items()}
             elif isinstance(obj, (list, tuple)):
                 return [convert(item) for item in obj]
+            elif isinstance(obj, bool):
+                return bool(obj)
             return obj
         
         os.makedirs('results', exist_ok=True)
