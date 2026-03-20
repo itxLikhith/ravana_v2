@@ -46,5 +46,10 @@ __all__.extend([
     "SurgicalProbeConfig",
     "ProbeType",
     "ProbeExperiment",
-    "SurgicalProbing"
+    "SurgicalProbing",
+    # Phase J
+    "HypothesisGenerator",
+    "GenerationConfig",
+    "HypothesisType",
+    "GeneratedHypothesis"
 ])
