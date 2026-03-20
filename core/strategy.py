@@ -69,6 +69,7 @@ class BehavioralContext:
     identity_drift: float = 0.0    # Negative = falling
     stability: float = 0.5         # Low variance = stable
     dissonance_variance: float = 0.0  # Recent dissonance variance
+    recent_resolution_success: float = 0.5  # Resolution success rate
     
     def to_array(self) -> np.ndarray:
         """Convert to numpy array for policy input."""

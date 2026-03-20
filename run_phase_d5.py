@@ -194,7 +194,6 @@ class PlanningTrainingPipeline:
             dissonance_trend=0.0,
             identity_drift=0.0,
             dissonance_variance=0.01,
-            episode=state.episode
         )
     
     def _get_recent_clamp_rate(self, window: int = 20) -> float:
