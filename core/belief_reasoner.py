@@ -315,11 +315,16 @@ class BeliefReasoner:
                 })
         self.hypotheses = kept
     
-    def get_dominant_hypothesis(self) -> Optional[Hypothesis]:
+    def get_dominant_hypothesis(self) -> Optional[Any]:
         """Get highest-confidence hypothesis."""
         if not self.hypotheses:
             return None
-        return max(self.hypotheses, key=lambda h: h.confidence)
+        # Handle both Hypothesis objects and dicts
+        def get_confidence(h):
+            if isinstance(h, dict):
+                return h.get('confidence', 0.5)
+            return getattr(h, 'confidence', 0.5)
+        return max(self.hypotheses, key=get_confidence)
     
     def get_mode_recommendation(self) -> str:
         """Recommend exploration mode based on belief uncertainty."""
@@ -366,7 +371,11 @@ class BeliefReasoner:
     def current_belief(self) -> float:
         """Current best belief estimate."""
         dominant = self.get_dominant_hypothesis()
-        return dominant.boundary_estimate if dominant else 0.5
+        if not dominant:
+            return 0.5
+        if isinstance(dominant, dict):
+            return dominant.get('boundary_estimate', 0.5)
+        return getattr(dominant, 'boundary_estimate', 0.5)
     
     @property  
     def current_uncertainty(self) -> float:
@@ -374,4 +383,6 @@ class BeliefReasoner:
         dominant = self.get_dominant_hypothesis()
         if not dominant:
             return 0.5
-        return 1.0 - dominant.confidence
+        if isinstance(dominant, dict):
+            return 1.0 - dominant.get('confidence', 0.5)
+        return 1.0 - getattr(dominant, 'confidence', 0.5)

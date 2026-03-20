@@ -1,72 +1,77 @@
 """
 RAVANA v2 Core Modules
+
+A self-stabilizing, self-expanding epistemic system with active experimentation
+and explicit Occam discipline.
 """
 
+# Phase A: Core Regulation
 from .governor import Governor, GovernorConfig, RegulationMode, ClampDiagnostics
 from .resolution import ResolutionEngine, ResolutionMemory
 from .identity import IdentityEngine, IdentityState
 from .state import StateManager, CognitiveState
+
+# Phase B: Adaptation
 from .adaptation import PolicyTweakLayer, AdaptiveGovernorBridge, AdaptationConfig
+
+# Phase C: Strategy Learning
 from .strategy import StrategyLayer, StrategyConfig, ExplorationMode, ModeSelection, BehavioralContext
 from .strategy_learning import StrategyLearningLayer, ModeOutcome, LearningConfig, StrategyWithLearning
+
+# Phase D: Intent
 from .intent import IntentEngine, IntentConfig, IntentAwareStrategy, SystemObjective
+
+# Phase D.5: Planning
 from .planning import MicroPlanner, PlanningConfig, SimulatedFuture
+
+# Phase E: Non-Stationary Environment
 from .environment import NonStationaryEnvironment, EnvironmentConfig, HiddenDynamics, WorldState
+
+# Phase F: Predictive World Model
 from .predictive_world import LearnedWorldModel, WorldModelConfig, PredictedState, AnomalyEvent, FalseWorldTester
+
+# Phase F.5: Belief Reasoning
 from .belief_reasoner import BeliefReasoner, BeliefConfig, Hypothesis, EvidenceEvent
+
+# Phase G: Active Epistemology
 from .active_epistemology import ActiveEpistemology, VoIConfig, InformationGainMethod, HypothesisDrivenActionSelector
 
+# Phase G.5: Surgical Probing
+from .surgical_probes import SurgicalProbeSelector, SurgicalProbeConfig, ProbeType, ProbeExperiment, SurgicalProbing
+
+# Phase J: Hypothesis Generation
+from .hypothesis_generation import HypothesisGenerator, GenerationConfig, HypothesisType, GeneratedHypothesis
+
+# Phase J.1: Occam Layer (Hypothesis Discipline)
+from .occam_layer import OccamLayer, OccamConfig, HypothesisScore, DisciplinedBeliefSystem
+
 __all__ = [
+    # Phase A
     "Governor", "GovernorConfig", "RegulationMode", "ClampDiagnostics",
     "ResolutionEngine", "ResolutionMemory",
     "IdentityEngine", "IdentityState",
     "StateManager", "CognitiveState",
+    # Phase B
     "PolicyTweakLayer", "AdaptiveGovernorBridge", "AdaptationConfig",
+    # Phase C
     "StrategyLayer", "StrategyConfig", "ExplorationMode", "ModeSelection", "BehavioralContext",
     "StrategyLearningLayer", "ModeOutcome", "LearningConfig", "StrategyWithLearning",
+    # Phase D
     "IntentEngine", "IntentConfig", "IntentAwareStrategy", "SystemObjective",
+    # Phase D.5
     "MicroPlanner", "PlanningConfig", "SimulatedFuture",
+    # Phase E
     "NonStationaryEnvironment", "EnvironmentConfig", "HiddenDynamics", "WorldState",
+    # Phase F
     "LearnedWorldModel", "WorldModelConfig", "PredictedState", "AnomalyEvent", "FalseWorldTester",
+    # Phase F.5
     "BeliefReasoner", "BeliefConfig", "Hypothesis", "EvidenceEvent",
+    # Phase G
     "ActiveEpistemology", "VoIConfig", "InformationGainMethod", "HypothesisDrivenActionSelector",
-    "OccamLayer",
-    "OccamConfig", 
-    "HypothesisScore",
-    "DisciplinedBeliefSystem",
-]
-
-# Phase G.5
-from .surgical_probes import (
-    SurgicalProbeSelector,
-    SurgicalProbeConfig,
-    ProbeType,
-    ProbeExperiment,
-    SurgicalProbing
-)
-
-__all__.extend([
-    "SurgicalProbeSelector",
-    "SurgicalProbeConfig",
-    "ProbeType",
-    "ProbeExperiment",
-    "SurgicalProbing",
+    # Phase G.5
+    "SurgicalProbeSelector", "SurgicalProbeConfig", "ProbeType", "ProbeExperiment", "SurgicalProbing",
     # Phase J
-    "HypothesisGenerator",
-    "GenerationConfig",
-    "HypothesisType",
-    "GeneratedHypothesis"
-    "OccamLayer",
-    "OccamConfig", 
-    "HypothesisScore",
-    "DisciplinedBeliefSystem",
-])
-
-# Phase J
-from .hypothesis_generation import (
-from .occam_layer import OccamLayer, OccamConfig, HypothesisScore, DisciplinedBeliefSystem
-    HypothesisGenerator,
-    GenerationConfig,
-    HypothesisType,
-    GeneratedHypothesis
-)
+    "HypothesisGenerator", "GenerationConfig", "HypothesisType", "GeneratedHypothesis",
+    # Phase J.1
+    "OccamLayer", "OccamConfig", "HypothesisScore", "DisciplinedBeliefSystem",
+]

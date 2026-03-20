@@ -76,11 +76,15 @@ class OccamLayer:
         
     def score_hypothesis(
         self,
-        hypothesis: Any,  # Hypothesis object
+        hypothesis: Any,  # Hypothesis object or dict
         explanatory_power: float,
         evidence_count: int,
         age: int
     ) -> HypothesisScore:
+        """
+        Score a hypothesis with full Occam penalty.
+        Handles both Hypothesis objects and dicts.
+        """
         """
         Score a hypothesis with full Occam penalty.
         
@@ -88,11 +92,17 @@ class OccamLayer:
         - Early: low penalty (exploration encouraged)
         - Late: high penalty (overfitting punished)
         """
-        # Extract complexity
-        complexity = getattr(hypothesis, 'complexity_score', 0.5)
+        # Extract complexity (handle both objects and dicts)
+        if isinstance(hypothesis, dict):
+            complexity = hypothesis.get('complexity_score', 0.5)
+        else:
+            complexity = getattr(hypothesis, 'complexity_score', 0.5)
         
         # Calculate stability from history
-        hyp_id = str(getattr(hypothesis, 'id', 'unknown'))
+        if isinstance(hypothesis, dict):
+            hyp_id = str(hypothesis.get('id', 'unknown'))
+        else:
+            hyp_id = str(getattr(hypothesis, 'id', 'unknown'))
         if hyp_id not in self.score_history:
             self.score_history[hyp_id] = []
         
@@ -203,11 +213,6 @@ class OccamLayer:
     ) -> bool:
         """
         Detect if a hypothesis is overfitting.
-        
-        Signs of overfitting:
-        - Explanatory power oscillates wildly
-        - Complexity increased rapidly
-        - Fits training data but fails on new data
         """
         if len(recent_scores) < 10:
             return False
@@ -215,8 +220,12 @@ class OccamLayer:
         # High variance = unstable = likely overfitting
         recent_variance = np.var(recent_scores[-10:])
         if recent_variance > 0.1:  # High oscillation
+            if isinstance(hypothesis, dict):
+                hyp_id = hypothesis.get('id', 'unknown')
+            else:
+                hyp_id = getattr(hypothesis, 'id', 'unknown')
             self.overfitting_alerts.append({
-                'hypothesis_id': getattr(hypothesis, 'id', 'unknown'),
+                'hypothesis_id': hyp_id,
                 'variance': recent_variance,
                 'type': 'oscillation',
                 'timestamp': len(self.overfitting_alerts)
