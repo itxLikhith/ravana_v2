@@ -10,13 +10,14 @@ import sys
 sys.path.insert(0, '/home/workspace/ravana_v2')
 
 from core import (
-    Governor, GovernorConfig,
-    ResolutionEngine, IdentityEngine, StateManager,
-    StrategyLayer, StrategyConfig, ExplorationMode,
-    StrategyLearningLayer, LearningConfig,
-    IntentEngine, IntentConfig, IntentAwareStrategy
+    Governor, GovernorConfig, ResolutionEngine, IdentityEngine, StateManager
 )
+from core.adaptation import PolicyTweakLayer, AdaptiveGovernorBridge, AdaptationConfig
+from core.strategy_learning import StrategyLearningLayer, ModeOutcome, LearningConfig
+from core.strategy import StrategyLayer, StrategyConfig, ExplorationMode, BehavioralContext
+from core.intent import IntentEngine, IntentConfig, IntentAwareStrategy
 from training.pipeline import TrainingPipeline, TrainingConfig
+import numpy as np
 
 
 def main():
@@ -130,15 +131,52 @@ class IntentTrainingPipeline(TrainingPipeline):
         
         return self._generate_intent_summary(elapsed)
     
-    def _get_context(self):
-        """Extract behavioral context."""
+    def _get_context(self) -> BehavioralContext:
+        """Extract behavioral context for strategy layer."""
         state = self.manager.state
-        return {
-            'dissonance': state.dissonance,
-            'identity': state.identity,
-            'recent_variance': self._compute_recent_variance(),
-            'clamp_rate': self._compute_recent_clamp_rate(),
-        }
+        
+        # Compute trend and variance
+        history = self.manager.history
+        window = 10
+        
+        if len(history) >= window:
+            recent_d = [h['post_dissonance'] for h in history[-window:]]
+            dissonance_variance = np.var(recent_d)
+            
+            # Trend: compare first half to second half
+            early_mean = np.mean(recent_d[:5])
+            late_mean = np.mean(recent_d[5:])
+            dissonance_trend = late_mean - early_mean
+        else:
+            dissonance_variance = 0.1
+            dissonance_trend = 0.0
+        
+        # Identity drift
+        if len(history) >= window:
+            recent_i = [h['post_identity'] for h in history[-window:]]
+            early_i = np.mean(recent_i[:5])
+            late_i = np.mean(recent_i[5:])
+            identity_drift = late_i - early_i
+        else:
+            identity_drift = 0.0
+        
+        # Clamp rate
+        clamp_window = min(20, len(history))
+        if clamp_window > 0:
+            recent_caps = sum(1 for h in history[-clamp_window:] if h.get('constraint_activated', False))
+            clamp_rate = recent_caps / clamp_window
+        else:
+            clamp_rate = 0.0
+        
+        return BehavioralContext(
+            clamp_rate=clamp_rate,
+            dissonance=state.dissonance,
+            identity=state.identity,
+            dissonance_trend=dissonance_trend,
+            identity_drift=identity_drift,
+            stability=dissonance_variance,
+            dissonance_variance=dissonance_variance
+        )
     
     def _compute_recent_variance(self, window=10):
         """Compute recent dissonance variance."""

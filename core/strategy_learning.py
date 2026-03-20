@@ -130,6 +130,50 @@ class StrategyLearningLayer:
         
         return outcome
     
+    def record_mode_usage(
+        self,
+        mode: ExplorationMode,
+        episode: int,
+        pre_state: Dict[str, float],
+        post_state: Dict[str, float],
+        clamp_events: List[Dict]
+    ):
+        """
+        Simplified interface for recording mode usage.
+        Wraps start_mode_tracking and end_mode_tracking.
+        """
+        from .strategy import BehavioralContext
+        
+        # Create context from pre_state
+        pre_context = BehavioralContext(
+            clamp_rate=len(clamp_events) / max(1, episode) if episode > 0 else 0.0,
+            dissonance=pre_state.get('dissonance', 0.5),
+            identity=pre_state.get('identity', 0.5),
+            dissonance_trend=0.0,
+            identity_drift=0.0,
+            stability=0.1,
+            dissonance_variance=0.1
+        )
+        
+        # Start tracking
+        self.start_mode_tracking(mode, episode, pre_context)
+        
+        # Create context from post_state
+        post_context = BehavioralContext(
+            clamp_rate=len(clamp_events) / max(1, episode + 1),
+            dissonance=post_state.get('dissonance', 0.5),
+            identity=post_state.get('identity', 0.5),
+            dissonance_trend=post_state.get('dissonance', 0.5) - pre_state.get('dissonance', 0.5),
+            identity_drift=post_state.get('identity', 0.5) - pre_state.get('identity', 0.5),
+            stability=0.1,
+            dissonance_variance=0.1
+        )
+        
+        # End tracking and get outcome
+        outcome = self.end_mode_tracking(mode, episode + 1, post_context)
+        
+        return outcome
+    
     def _compute_outcome_score(self, outcome: ModeOutcome) -> float:
         """
         Score mode effectiveness.

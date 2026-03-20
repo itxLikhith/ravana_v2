@@ -1,12 +1,12 @@
 {
   "total_episodes": 1000,
-  "elapsed_seconds": 0.07134079933166504,
+  "elapsed_seconds": 1.475743055343628,
   "final_state": {
-    "dissonance": 0.5325175411001288,
-    "identity": 0.5264931237708409,
+    "dissonance": 0.6923428021317304,
+    "identity": 0.512287460176851,
     "episode": 1000,
     "cycle": 1000,
-    "wisdom": 39.579999999999956
+    "wisdom": 33.76999999999995
   },
   "governor_stats": {
     "current_mode": "plateau",
@@ -15,21 +15,37 @@
     },
     "total_cycles": 1000,
     "constraint_activations": 0,
-    "recent_dissonance_variance": 0.004771234726573681
+    "recent_dissonance_variance": 0.005329510852420505
   },
   "resolution_stats": {
     "total_events": 1000,
-    "accumulated_partial": 0.04,
+    "accumulated_partial": 0.1,
     "threshold": 0.15,
-    "progress_to_wisdom": 0.26666666666666666,
-    "current_streak": 0,
+    "progress_to_wisdom": 0.6666666666666667,
+    "current_streak": 10,
     "recent_resolution_rate": 0.0
   },
   "identity_stats": {
     "strength": 0.5,
-    "momentum": 0.026493123770840947,
+    "momentum": 0.012287460176851046,
     "stability": 0.5,
     "trend": 0.0,
     "history_length": 1
+  },
+  "clamp_metrics": {
+    "clamp_rate": 0.0,
+    "alignment_score": 1.0,
+    "d_clamp_rate": 0.0,
+    "i_clamp_rate": 0.0,
+    "mean_correction": 0,
+    "total_correction": 0.0,
+    "hard_constraint_clamps": 0,
+    "final_clamp_clamps": 0,
+    "significant_corrections": 0,
+    "significant_rate": 0,
+    "total_clamps": 0,
+    "d_clamps": 0,
+    "i_clamps": 0,
+    "upstream_suggestions": 1000
   }
 }

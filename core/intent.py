@@ -113,6 +113,18 @@ class IntentEngine:
         # History for introspection
         self.weight_history: List[Dict[str, float]] = []
         self.episode_count: int = 0
+        
+        # Current state tracking
+        self.current_context: Optional[Dict[str, Any]] = None
+        self.current_clamp_events: List[Dict] = []
+    
+    def update_state(self, context: Dict[str, Any], clamp_events: List[Dict]):
+        """
+        Store current state for intent computation.
+        Called before mode selection to capture context.
+        """
+        self.current_context = context
+        self.current_clamp_events = clamp_events
     
     def evaluate_outcomes(
         self,
@@ -345,16 +357,29 @@ class IntentAwareStrategy:
         clamp_events: List[Dict]
     ) -> Tuple[ExplorationMode, Dict[str, Any]]:
         """
-        Full selection with all three signals:
-        1. Rule-based (strategy layer)
-        2. Learned effectiveness (learning layer)
-        3. Intent bias (what system wants)
+        Select mode using intent-weighted strategy.
+        
+        Process:
+        1. Get base strategy selection
+        2. Adjust based on intent weights
+        3. Return final mode with full context
         """
-        # Get base selection
-        mode, info = self.strategy.select_mode(context, clamp_events)
+        # Update intent engine with current state
+        self.intent.update_state(context, clamp_events)
+        
+        # Get base strategy selection (rule + learned scores)
+        selection = self.strategy.select_mode(context)
+        mode = selection.mode
         
         # Get intent bias for this mode
         intent_bias = self.intent.compute_mode_bias(mode)
+        
+        # Build info dict from selection
+        info = {
+            'score': selection.confidence,
+            'reason': selection.reason,
+            'context': selection.context,
+        }
         
         # Combine: add intent as final modulation
         final_score = info.get('score', 0.5) + 0.2 * intent_bias
@@ -390,6 +415,6 @@ class IntentAwareStrategy:
         """Complete system status including intent."""
         return {
             "strategy": self.strategy.get_mode_analytics(),
-            "learning": self.learning.get_learning_summary(),
+            "learning": self.learning.get_learning_status(),
             "intent": self.intent.get_current_intent(),
         }

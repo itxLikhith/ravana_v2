@@ -38,6 +38,9 @@ class StrategyConfig:
     boundary_proximity: float = 0.75   # D > 0.75 = near boundary
     stability_threshold: float = 0.02    # Var < 0.02 = stable
     
+    # Mode switching
+    hysteresis_bonus: float = 0.1  # Preference for current mode
+    
     # Mode → policy bias
     aggressive_delta_scale: float = 1.3
     aggressive_noise: float = 0.03
@@ -65,6 +68,7 @@ class BehavioralContext:
     dissonance_trend: float = 0.0  # Positive = rising
     identity_drift: float = 0.0    # Negative = falling
     stability: float = 0.5         # Low variance = stable
+    dissonance_variance: float = 0.0  # Recent dissonance variance
     
     def to_array(self) -> np.ndarray:
         """Convert to numpy array for policy input."""
@@ -99,9 +103,27 @@ class StrategyLayer:
         
         # Analytics
         self.mode_distribution: Dict[ExplorationMode, int] = {mode: 0 for mode in ExplorationMode}
+        self.mode_history: List[ExplorationMode] = []  # Track mode sequence
+        self.mode_durations: Dict[ExplorationMode, List[int]] = {mode: [] for mode in ExplorationMode}
         self.mode_switches: int = 0
         self.current_mode_start: int = 0
+    
+    def _compute_d_trend(self) -> float:
+        """
+        🔮 Compute dissonance trend for anticipatory switching.
         
+        Positive = rising (toward boundary)
+        Negative = falling (away from boundary)
+        """
+        if len(self._dissonance_window) < 4:
+            return 0.0
+        
+        # Current vs 3 steps ago
+        current = self._dissonance_window[-1]
+        past = self._dissonance_window[-4]
+        
+        return current - past
+    
     def select_mode(self, context: BehavioralContext) -> ModeSelection:
         """
         Select mode with:
@@ -151,7 +173,14 @@ class StrategyLayer:
         return ModeSelection(
             mode=best_mode,
             confidence=best_score,
-            reason=" | ".join(reason_parts)
+            reason=" | ".join(reason_parts),
+            context={
+                'clamp_rate': context.clamp_rate,
+                'dissonance': context.dissonance,
+                'identity': context.identity,
+                'trend': d_trend,
+                'score': best_score
+            }
         )
     
     def _evaluate_mode_scores(
@@ -322,8 +351,10 @@ class StrategyLayer:
         if len(history) >= 5:
             recent_states = [h['post_dissonance'] for h in history[-5:]]
             stability = np.var(recent_states)
+            dissonance_variance = stability  # Same as stability for recent window
         else:
             stability = 0.5
+            dissonance_variance = 0.1
         
         return BehavioralContext(
             clamp_rate=clamp_rate,
@@ -331,7 +362,8 @@ class StrategyLayer:
             identity=current.identity,
             dissonance_trend=dissonance_trend,
             identity_drift=identity_drift,
-            stability=stability
+            stability=stability,
+            dissonance_variance=dissonance_variance
         )
     
     def get_mode_analytics(self) -> Dict[str, Any]:
@@ -372,3 +404,17 @@ class StrategyLayer:
             "mode_switches": self.mode_switches,
             "recent_modes": [m.value for m in list(self.mode_history)[-5:]]
         }
+    
+    def update_mode_analytics(self, mode: ExplorationMode, episode: int):
+        """Update analytics when a mode is selected."""
+        # Track distribution
+        self.mode_distribution[mode] = self.mode_distribution.get(mode, 0) + 1
+        
+        # Track switches
+        if mode != self.current_mode:
+            self.mode_switches += 1
+            self.current_mode = mode
+            self.current_mode_start = episode
+        
+        # Track dissonance for trend computation
+        # (This would be called from outside with current dissonance)
