@@ -44,6 +44,19 @@ from .environment import (
     HiddenDynamics,
     WorldState
 )
+from .predictive_world import (
+    LearnedWorldModel,
+    WorldModelConfig,
+    Prediction,
+    AnomalyEvent,
+    FalseWorldTester,
+)
+from .belief_reasoner import (
+    BeliefReasoner,
+    BeliefConfig,
+    Hypothesis,
+    EvidenceEvent,
+)
 
 __all__ = [
     # Phase A
@@ -86,4 +99,15 @@ __all__ = [
     "EnvironmentConfig",
     "HiddenDynamics",
     "WorldState",
+    # Phase F
+    "LearnedWorldModel",
+    "WorldModelConfig",
+    "Prediction",
+    "AnomalyEvent",
+    "FalseWorldTester",
+    # Phase F.5
+    "BeliefReasoner",
+    "BeliefConfig",
+    "Hypothesis",
+    "EvidenceEvent",
 ]
