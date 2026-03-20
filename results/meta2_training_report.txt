@@ -6,9 +6,9 @@ Total Episodes: 500
 Training Time: 0.1s
 
 FINAL STATE:
-  Dissonance: 0.507
-  Identity: 0.487
-  Wisdom: 15.20
+  Dissonance: 0.489
+  Identity: 0.514
+  Wisdom: 8.58
 
 META²-COGNITION METRICS:
   Hypotheses generated: 0

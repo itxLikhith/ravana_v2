@@ -1,12 +1,12 @@
 {
   "total_episodes": 1000,
-  "elapsed_seconds": 1.475743055343628,
+  "elapsed_seconds": 0.10154891014099121,
   "final_state": {
-    "dissonance": 0.6923428021317304,
-    "identity": 0.512287460176851,
+    "dissonance": 0.6901989500195681,
+    "identity": 0.5068807421371039,
     "episode": 1000,
     "cycle": 1000,
-    "wisdom": 33.76999999999995
+    "wisdom": 35.019999999999975
   },
   "governor_stats": {
     "current_mode": "plateau",
@@ -15,19 +15,19 @@
     },
     "total_cycles": 1000,
     "constraint_activations": 0,
-    "recent_dissonance_variance": 0.005329510852420505
+    "recent_dissonance_variance": 0.0078113850586104
   },
   "resolution_stats": {
     "total_events": 1000,
-    "accumulated_partial": 0.1,
+    "accumulated_partial": 0.04,
     "threshold": 0.15,
-    "progress_to_wisdom": 0.6666666666666667,
-    "current_streak": 10,
+    "progress_to_wisdom": 0.26666666666666666,
+    "current_streak": 0,
     "recent_resolution_rate": 0.0
   },
   "identity_stats": {
     "strength": 0.5,
-    "momentum": 0.012287460176851046,
+    "momentum": 0.006880742137103868,
     "stability": 0.5,
     "trend": 0.0,
     "history_length": 1

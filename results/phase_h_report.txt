@@ -8,63 +8,63 @@
 
 🧪 HONEST CONSENSUS
    Ground truth: 0.800
-   RAVANA: 0.8091 ± 0.0091 (conf: 0.95)
-   Consensus: 0.8200 ± 0.0200 (conf: 1.00)
-   Deception alerts: 100
+   RAVANA: 0.7780 ± 0.0220 (conf: 0.95)
+   Consensus: 0.7752 ± 0.0248 (conf: 1.00)
+   Deception alerts: 75
 
 🧪 ADVERSARIAL ATTACK
    Ground truth: 0.750
-   RAVANA: 0.7913 ± 0.0413 (conf: 0.95)
-   Consensus: 0.7755 ± 0.0255 (conf: 1.00)
-   Deception alerts: 250
+   RAVANA: 0.6996 ± 0.0504 (conf: 0.95)
+   Consensus: 0.7038 ± 0.0462 (conf: 1.00)
+   Deception alerts: 242
 
 🧪 EXPERT VS CROWD
    Ground truth: 0.820
-   RAVANA: 0.8348 ± 0.0148 (conf: 0.95)
-   Consensus: 0.8302 ± 0.0102 (conf: 1.00)
+   RAVANA: 0.8094 ± 0.0106 (conf: 0.95)
+   Consensus: 0.8311 ± 0.0111 (conf: 1.00)
    Deception alerts: 0
 
 🧪 EPISTEMIC DIVIDE
    Ground truth: 0.780
-   RAVANA: 0.7426 ± 0.0374 (conf: 0.95)
-   Consensus: 0.7576 ± 0.0224 (conf: 1.00)
-   Deception alerts: 151
+   RAVANA: 0.7062 ± 0.0738 (conf: 0.95)
+   Consensus: 0.6980 ± 0.0820 (conf: 1.00)
+   Deception alerts: 175
 
 
 🤝 TRUST LEARNING ANALYSIS
 ──────────────────────────────────────────────────────────────────────
 
 HONEST CONSENSUS:
-   Expert avg trust: 0.700
-   Peer avg trust: 0.656
-   Novice avg trust: 0.584
-   Adversary trust: 0.468 (honesty: 0.300) ←
+   Expert avg trust: 0.688
+   Peer avg trust: 0.661
+   Novice avg trust: 0.491
+   Adversary trust: 0.513 (honesty: 0.300) ←
       ✓ Correctly detected as low-trust
 
 ADVERSARIAL ATTACK:
-   Expert avg trust: 0.726
-   Peer avg trust: 0.667
-   Novice avg trust: 0.574
-   Adversary trust: 0.453 (honesty: 0.300) ←
+   Expert avg trust: 0.715
+   Peer avg trust: 0.654
+   Novice avg trust: 0.478
+   Adversary trust: 0.404 (honesty: 0.300) ←
       ✓ Correctly detected as low-trust
 
 EXPERT VS CROWD:
-   Expert avg trust: 0.728
-   Peer avg trust: 0.683
-   Novice avg trust: 0.650
+   Expert avg trust: 0.734
+   Peer avg trust: 0.650
+   Novice avg trust: 0.646
 
 EPISTEMIC DIVIDE:
-   Expert avg trust: 0.677
-   Peer avg trust: 0.690
-   Novice avg trust: 0.612
-   Adversary trust: 0.442 (honesty: 0.300) ←
+   Expert avg trust: 0.705
+   Peer avg trust: 0.635
+   Novice avg trust: 0.617
+   Adversary trust: 0.415 (honesty: 0.300) ←
       ✓ Correctly detected as low-trust
 
 
 🛡️ DECEPTION DETECTION
 ──────────────────────────────────────────────────────────────────────
 
-Total deception alerts: 501
+Total deception alerts: 492
 Scenarios with detection: 3/4
 
 

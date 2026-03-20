@@ -196,6 +196,53 @@ class Meta2TestEnvironment:
         
         return result
     
+    def run_demo_epiphany(self) -> Dict[str, Any]:
+        """
+        Demonstrate Meta² triggering an epiphany in controlled conditions.
+        
+        This forces hypothesis space inadequacy to show Meta² working.
+        """
+        print("\n" + "="*60)
+        print("🧠 META² EPIPHANY DEMONSTRATION")
+        print("="*60)
+        
+        # Create scenario where true model is outside hypothesis space
+        scenario = Meta2TestScenario(
+            name="forced_epiphany_demo",
+            description="True model is NONLINEAR but only LINEAR hypotheses allowed",
+            true_boundary=0.8,
+            hypothesis_space_limit="LINEAR_ONLY",  # Force inadequacy
+            true_model_type="NONLINEAR",
+            episodes=100
+        )
+        
+        # Run with forced inadequacy
+        results = []
+        epiphany_triggered = False
+        
+        for ep in range(scenario.episodes):
+            # True boundary follows nonlinear pattern
+            true_b = 0.5 + 0.3 * np.sin(ep / 20.0) + 0.1 * np.random.randn()
+            true_b = np.clip(true_b, 0.2, 0.95)
+            
+            # Check with Meta² (will detect space inadequacy)
+            meta2_state = self.meta2.step(ep, 0.0, 0.5, [], true_b)
+            
+            if meta2_state['space_inadequacy']:
+                critique = self.meta2.issue_epistemic_critique(ep, 0.0, 0.5, [], true_b)
+                if critique:
+                    epiphany_triggered = True
+                    print(f"\n✨ EPIPHANY at episode {ep}!")
+                    print(f"   Critique type: {critique['critique_type']}")
+                    print(f"   Trigger: {critique['trigger']}")
+                    break
+        
+        return {
+            'scenario': scenario.name,
+            'epiphany_triggered': epiphany_triggered,
+            'status': '✅ EPIPHANY DEMONSTRATED' if epiphany_triggered else '❌ No epiphany'
+        }
+    
     def _apply_true_model(self, model_type: str, episode: int, base_boundary: float) -> float:
         """Apply the true underlying model to get boundary."""
         if model_type == "PARAMETRIC_TIME":

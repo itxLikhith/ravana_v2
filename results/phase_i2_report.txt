@@ -16,12 +16,12 @@
    Epiphany: False
 
 ❌ structural_blindspot (space inadequate)
-   Failure rate: 14.0%
+   Failure rate: 18.0%
    Meta² triggered: False
    Epiphany: False
 
 ❌ occam_bias_failure (space inadequate)
-   Failure rate: 14.0%
+   Failure rate: 12.0%
    Meta² triggered: False
    Epiphany: False
 
@@ -31,7 +31,7 @@
    Epiphany: False
 
 ❌ identity_protecting_beliefs (space inadequate)
-   Failure rate: 34.0%
+   Failure rate: 38.0%
    Meta² triggered: False
    Epiphany: False
 

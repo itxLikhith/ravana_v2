@@ -111,8 +111,19 @@ class PolicyTweakLayer:
         """
         import math
         
-        # Encode current state
-        state = self.encode_state(signals)
+        # Extract state from signals or use defaults
+        current_d = signals.get('dissonance', 0.5)
+        current_i = signals.get('identity', 0.5)
+        mode = governor_decision.get('mode', 'normal')
+        
+        # Create simple state encoding
+        state = np.array([
+            current_d,
+            current_i,
+            signals.get('d_delta', 0.0),
+            signals.get('i_delta', 0.0),
+            {'normal': 0.0, 'exploration': -1.0, 'resolution': 1.0, 'recovery': 2.0}.get(mode, 0.0)
+        ])
         
         # Forward pass: state -> tweak
         tweak = self.weights.T @ state  # [2] vector
@@ -289,10 +300,13 @@ class AdaptiveGovernorBridge:
         )
         
         # Apply policy tweak BEFORE governor
-        tweaked_d, tweaked_i = self.adaptation.compute_tweak(
-            raw_signals.dissonance_delta,
-            raw_signals.identity_delta,
-            state_enc
+        governor_decision = {'mode': 'normal'}  # Placeholder
+        tweaked_d, tweaked_i, exp = self.adaptation.compute_tweak(
+            {
+                'dissonance_delta': raw_signals.dissonance_delta,
+                'identity_delta': raw_signals.identity_delta
+            },
+            governor_decision
         )
         
         # Create tweaked signals
