@@ -88,50 +88,127 @@ class StrategyLayer:
     
     def __init__(self, config: Optional[StrategyConfig] = None):
         self.config = config or StrategyConfig()
-        self.current_mode: ExplorationMode = ExplorationMode.EXPLORE_SAFE
-        self.mode_history: deque = deque(maxlen=100)
-        self.context_history: deque = deque(maxlen=20)
+        self.current_mode = ExplorationMode.EXPLORE_SAFE
+        self.history: List[ModeSelection] = []
         
-        # Mode statistics
-        self.mode_durations: Dict[ExplorationMode, List[int]] = {
-            mode: [] for mode in ExplorationMode
-        }
+        # Track dissonance for trend computation
+        self._dissonance_window: deque = deque(maxlen=10)
+        
+        # 🔴 EXIT INTELLIGENCE: Recover mode tracking
+        self._recover_intensity: float = 0.0
+        
+        # Analytics
+        self.mode_distribution: Dict[ExplorationMode, int] = {mode: 0 for mode in ExplorationMode}
         self.mode_switches: int = 0
         self.current_mode_start: int = 0
         
-    def select_mode(self, context: BehavioralContext, episode: int) -> ModeSelection:
+    def select_mode(self, context: BehavioralContext) -> ModeSelection:
         """
-        Select exploration mode based on current context.
-        
-        This is where intent emerges: choosing HOW to behave.
+        Select mode with:
+        - Soft scoring (no hard thresholds)
+        - Trend injection (anticipatory switching)
+        - Hysteresis (preference for current mode)
+        - Exit intelligence for RECOVER
         """
-        self.context_history.append(context)
+        # Compute trend for anticipatory switching
+        d_trend = self._compute_d_trend()
         
-        # Priority 1: Crisis override
-        if context.clamp_rate > self.config.crisis_clamp_rate:
-            return self._select(ExplorationMode.RECOVER, 0.9, 
-                              f"CRISIS: clamp_rate={context.clamp_rate:.2%}", context)
+        # Get soft scores
+        scores = self._evaluate_mode_scores(context, d_trend)
         
-        # Priority 2: High stability + good identity = lock in gains
-        if (context.stability < self.config.stability_threshold and 
-            context.identity > 0.7 and 
-            context.dissonance < 0.5):
-            return self._select(ExplorationMode.STABILIZE, 0.8,
-                              f"STABLE: var={context.stability:.3f}, I={context.identity:.2f}", context)
+        # 🔴 EXIT INTELLIGENCE: If in RECOVER, check if we can decay
+        if self.current_mode == ExplorationMode.RECOVER:
+            if context.clamp_rate < 0.08 and d_trend < 0:  # Improving
+                # Decay recover intensity instead of hard exit
+                self._recover_intensity *= 0.9  # Gradual exit
+                if self._recover_intensity < 0.3:
+                    # Safe to exit RECOVER
+                    pass  # Let normal selection take over
+            else:
+                # Still in crisis, maintain intensity
+                self._recover_intensity = min(1.0, self._recover_intensity * 1.1)
+                # Force stay in recover
+                return ModeSelection(
+                    mode=ExplorationMode.RECOVER,
+                    confidence=self._recover_intensity,
+                    reason=f"RECOVER_INTENSITY: {self._recover_intensity:.2f}, clamp={context.clamp_rate:.2%}"
+                )
         
-        # Priority 3: Low dissonance = room for aggressive exploration
-        if context.dissonance < self.config.high_exploration_threshold:
-            return self._select(ExplorationMode.EXPLORE_AGGRESSIVE, 0.7,
-                              f"ROOM: D={context.dissonance:.2f}", context)
+        # Apply hysteresis (preference for current mode)
+        if self.current_mode in scores:
+            scores[self.current_mode] += self.config.hysteresis_bonus
         
-        # Priority 4: Near boundary = cautious exploration
-        if context.dissonance > self.config.boundary_proximity:
-            return self._select(ExplorationMode.EXPLORE_SAFE, 0.75,
-                              f"BOUNDARY: D={context.dissonance:.2f}", context)
+        # Select mode with highest score
+        best_mode = max(scores, key=scores.get)
+        best_score = scores[best_mode]
         
-        # Default: safe exploration
-        return self._select(ExplorationMode.EXPLORE_SAFE, 0.5,
-                          f"DEFAULT: ambiguous context", context)
+        # Build reason string with trend info
+        reason_parts = [f"score={best_score:.2f}"]
+        if abs(d_trend) > 0.01:
+            direction = "→" if d_trend > 0 else "←"
+            reason_parts.append(f"trend={d_trend:+.3f}{direction}")
+        
+        return ModeSelection(
+            mode=best_mode,
+            confidence=best_score,
+            reason=" | ".join(reason_parts)
+        )
+    
+    def _evaluate_mode_scores(
+        self,
+        context: BehavioralContext,
+        d_trend: float
+    ) -> Dict[ExplorationMode, float]:
+        """
+        🎯 SOFT SCORING: Convert hard thresholds to smooth sigmoid curves.
+        
+        Prevents mode cliffs and oscillations near boundaries.
+        """
+        D = context.dissonance
+        I = context.identity
+        clamp_rate = context.clamp_rate
+        
+        k = 15.0  # Steepness for sigmoid curves
+        
+        # RECOVER: Crisis detection (always highest priority if triggered)
+        # Use sharp sigmoid for crisis — we want decisive response
+        recover_score = 1.0 / (1.0 + np.exp(-k * (clamp_rate - 0.15)))
+        
+        # STABILIZE: Stable plateau with high identity
+        # Smooth activation based on dissonance variance AND identity
+        stability_score = (
+            (1.0 / (1.0 + np.exp(-k * (0.05 - context.dissonance_variance)))) *  # Low variance
+            (1.0 / (1.0 + np.exp(-k * (I - 0.70))))  # High identity
+        )
+        
+        # EXPLORE_AGGRESSIVE: Room to grow (low D)
+        # Soft threshold: stronger as D gets lower
+        aggressive_score = 1.0 / (1.0 + np.exp(-k * (0.30 - D)))
+        
+        # EXPLORE_SAFE: Near boundary but not in crisis
+        # Soft activation as D approaches limit
+        safe_score = (
+            (1.0 / (1.0 + np.exp(-k * (D - 0.65)))) *  # D is high
+            (1.0 - recover_score)  # But NOT in crisis
+        )
+        
+        # 🔮 TREND INJECTION: Anticipatory adjustment
+        # If trending toward boundary, boost safe modes early
+        if d_trend > 0.02:  # Drifting toward high dissonance
+            # Boost safe mode before we hit the hard limit
+            safe_score = max(safe_score, 0.3 + d_trend * 5.0)
+            # Reduce aggressive to prevent drift
+            aggressive_score *= 0.5
+        elif d_trend < -0.02:  # Drifting toward center
+            # Slight boost to aggressive (room opening up)
+            aggressive_score = min(1.0, aggressive_score * 1.2)
+        
+        return {
+            ExplorationMode.RECOVER: recover_score,
+            ExplorationMode.STABILIZE: stability_score,
+            ExplorationMode.EXPLORE_SAFE: safe_score,
+            ExplorationMode.EXPLORE_AGGRESSIVE: aggressive_score,
+        }
     
     def _select(self, mode: ExplorationMode, confidence: float, 
                 reason: str, context: BehavioralContext) -> ModeSelection:

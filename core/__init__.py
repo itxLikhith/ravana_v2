@@ -4,6 +4,7 @@ RAVANA v2 Core Modules
 Phase A: Governor + Resolution + Identity
 Phase B: Adaptation (learning from clamp events)
 Phase B.5: Strategy (deliberate mode selection)
+Phase C: Strategy Learning (rules → learned preferences)
 """
 
 from .governor import Governor, GovernorConfig, RegulationMode, ClampDiagnostics
@@ -17,6 +18,12 @@ from .strategy import (
     ExplorationMode,
     ModeSelection,
     BehavioralContext
+)
+from .strategy_learning import (
+    StrategyLearningLayer,
+    ModeOutcome,
+    LearningConfig,
+    StrategyWithLearning
 )
 
 __all__ = [
@@ -41,4 +48,9 @@ __all__ = [
     "ExplorationMode",
     "ModeSelection",
     "BehavioralContext",
+    # Phase C
+    "StrategyLearningLayer",
+    "ModeOutcome",
+    "LearningConfig",
+    "StrategyWithLearning",
 ]
