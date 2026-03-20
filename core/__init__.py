@@ -44,6 +44,7 @@ from .hypothesis_generation import HypothesisGenerator, GenerationConfig, Hypoth
 
 # Phase J.1: Occam Layer (Hypothesis Discipline)
 from .occam_layer import OccamLayer, OccamConfig, HypothesisScore, DisciplinedBeliefSystem
+from .meta_cognition import MetaCognition, MetaCognitiveConfig, EpistemicMode, ProbeResult, ReasoningQualityTracker, ConfidenceCalibrator, BiasDetector
 
 __all__ = [
     # Phase A
