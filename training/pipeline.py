@@ -132,6 +132,10 @@ class TrainingPipeline:
         """Generate training summary."""
         status = self.manager.get_status()
         
+        # 🔴 Get clamp diagnostics report
+        clamp_report = self.manager.governor.get_clamp_report()
+        clamp_metrics = self.manager.governor.get_clamp_metrics()
+        
         summary = {
             "total_episodes": self.config.total_episodes,
             "elapsed_seconds": elapsed,
@@ -139,11 +143,33 @@ class TrainingPipeline:
             "governor_stats": status["governor"],
             "resolution_stats": status["resolution"],
             "identity_stats": status["identity"],
+            # 🔴 Clamp diagnostics
+            "clamp_metrics": clamp_metrics,
         }
         
-        # Save to file
+        # Save main summary
         with open(self.output_dir / "training_summary.json", "w") as f:
             json.dump(summary, f, indent=2)
+        
+        # 🔴 Save detailed clamp event log if available
+        if hasattr(self.manager.governor.clamp_diagnostics, 'events'):
+            events_data = [
+                {
+                    "episode": e.episode,
+                    "variable": e.variable,
+                    "before": e.before,
+                    "after": e.after,
+                    "correction": e.correction,
+                    "layer": e.layer,
+                    "reason": e.reason
+                }
+                for e in self.manager.governor.clamp_diagnostics.events
+            ]
+            with open(self.output_dir / "clamp_events.json", "w") as f:
+                json.dump(events_data, f, indent=2)
+        
+        # 🔴 Print clamp report
+        print(f"\n{clamp_report}")
         
         return summary
 

@@ -9,6 +9,7 @@ import numpy as np
 from dataclasses import dataclass, field
 from typing import Dict, Any, List, Optional, Tuple
 from enum import Enum
+import math
 
 
 class RegulationMode(Enum):
@@ -46,6 +47,134 @@ class GovernorConfig:
     # Plateau detection
     plateau_window: int = 50
     plateau_tolerance: float = 0.02
+    
+    # Clamp diagnostics
+    clamp_alert_threshold: float = 0.05  # Log alert if correction > 5%
+
+
+@dataclass
+class ClampEvent:
+    """Single clamp correction event."""
+    episode: int
+    variable: str  # 'dissonance' or 'identity'
+    before: float
+    after: float
+    correction: float
+    layer: str  # 'hard_constraint' or 'final_clamp'
+    reason: str
+
+
+@dataclass
+class ClampDiagnostics:
+    """
+    Comprehensive clamp diagnostics.
+    
+    Tracks how often the governor's hard constraints override
+    upstream suggestions, and measures controller/clamp alignment.
+    """
+    # Raw event log
+    events: List[ClampEvent] = field(default_factory=list)
+    
+    # Counters
+    total_upstream_suggestions: int = 0
+    
+    # Dissonance clamp stats
+    d_clamp_activations: int = 0
+    d_clamp_corrections_total: float = 0.0
+    d_clamp_by_layer: Dict[str, int] = field(default_factory=lambda: {"hard_constraint": 0, "final_clamp": 0})
+    
+    # Identity clamp stats  
+    i_clamp_activations: int = 0
+    i_clamp_corrections_total: float = 0.0
+    i_clamp_by_layer: Dict[str, int] = field(default_factory=lambda: {"hard_constraint": 0, "final_clamp": 0})
+    
+    # Significant corrections (above alert threshold)
+    significant_corrections: int = 0
+    
+    def record_event(self, event: ClampEvent):
+        """Record a clamp event and update counters."""
+        self.events.append(event)
+        
+        if event.variable == 'dissonance':
+            self.d_clamp_activations += 1
+            self.d_clamp_corrections_total += event.correction
+            self.d_clamp_by_layer[event.layer] = self.d_clamp_by_layer.get(event.layer, 0) + 1
+        else:
+            self.i_clamp_activations += 1
+            self.i_clamp_corrections_total += event.correction
+            self.i_clamp_by_layer[event.layer] = self.i_clamp_by_layer.get(event.layer, 0) + 1
+        
+        # Check if significant
+        if event.correction > 0.05:  # 5% threshold
+            self.significant_corrections += 1
+    
+    def record_upstream_suggestion(self):
+        """Count a suggestion from upstream (for alignment ratio)."""
+        self.total_upstream_suggestions += 1
+    
+    def get_metrics(self) -> Dict[str, Any]:
+        """Compute diagnostic metrics."""
+        if self.total_upstream_suggestions == 0:
+            return {"status": "no_data"}
+        
+        total_clamps = self.d_clamp_activations + self.i_clamp_activations
+        total_correction = self.d_clamp_corrections_total + self.i_clamp_corrections_total
+        
+        return {
+            # Alignment: how often does upstream need correction?
+            "clamp_rate": total_clamps / self.total_upstream_suggestions,
+            "alignment_score": 1.0 - (total_clamps / self.total_upstream_suggestions),
+            
+            # By variable
+            "d_clamp_rate": self.d_clamp_activations / max(1, self.total_upstream_suggestions),
+            "i_clamp_rate": self.i_clamp_activations / max(1, self.total_upstream_suggestions),
+            
+            # Magnitude
+            "mean_correction": total_correction / max(1, total_clamps) if total_clamps > 0 else 0,
+            "total_correction": total_correction,
+            
+            # By layer
+            "hard_constraint_clamps": self.d_clamp_by_layer.get("hard_constraint", 0) + self.i_clamp_by_layer.get("hard_constraint", 0),
+            "final_clamp_clamps": self.d_clamp_by_layer.get("final_clamp", 0) + self.i_clamp_by_layer.get("final_clamp", 0),
+            
+            # Alerts
+            "significant_corrections": self.significant_corrections,
+            "significant_rate": self.significant_corrections / max(1, total_clamps) if total_clamps > 0 else 0,
+            
+            # Raw counts
+            "total_clamps": total_clamps,
+            "d_clamps": self.d_clamp_activations,
+            "i_clamps": self.i_clamp_activations,
+            "upstream_suggestions": self.total_upstream_suggestions,
+        }
+    
+    def get_summary_report(self) -> str:
+        """Generate human-readable summary."""
+        m = self.get_metrics()
+        if m.get("status") == "no_data":
+            return "[ClampDiagnostics] No data collected yet."
+        
+        lines = [
+            "=" * 50,
+            "📊 CLAMP DIAGNOSTICS REPORT",
+            "=" * 50,
+            f"Alignment Score: {m['alignment_score']:.1%} (higher = better)",
+            f"  └─ Upstream suggestions: {m['upstream_suggestions']:,}",
+            f"  └─ Total clamps applied: {m['total_clamps']:,}",
+            "",
+            "By Variable:",
+            f"  Dissonance: {m['d_clamps']:,} clamps ({m['d_clamp_rate']:.1%} rate)",
+            f"  Identity:   {m['i_clamps']:,} clamps ({m['i_clamp_rate']:.1%} rate)",
+            "",
+            "By Layer:",
+            f"  Hard constraints: {m['hard_constraint_clamps']:,}",
+            f"  Final clamp:      {m['final_clamp_clamps']:,}",
+            "",
+            f"Mean correction: {m['mean_correction']:.4f}",
+            f"Significant corrections (>5%): {m['significant_corrections']:,} ({m['significant_rate']:.1%})",
+            "=" * 50,
+        ]
+        return "\n".join(lines)
 
 
 @dataclass
@@ -108,11 +237,8 @@ class Governor:
         self.dampening_activations: int = 0
         self.overshoot_events: int = 0
 
-        # 🔴 CLAMP DIAGNOSTICS: Track controller vs clamp alignment
-        self.clamp_corrections_total = 0.0
-        self.clamp_activations = 0
-        self.upstream_suggestions = 0
-        self.clamp_correction_history = []
+        # 🔴 CLAMP DIAGNOSTICS: New comprehensive system
+        self.clamp_diagnostics = ClampDiagnostics()
         
     def regulate(
         self,
@@ -126,6 +252,9 @@ class Governor:
         
         Returns regulated deltas that keep system in healthy bounds.
         """
+        # Count this as an upstream suggestion
+        self.clamp_diagnostics.record_upstream_suggestion()
+        
         # Detect current mode
         mode = self._detect_mode(
             current_dissonance,
@@ -137,10 +266,10 @@ class Governor:
         dissonance_delta, identity_delta, constraints = self._apply_hard_constraints(
             current_dissonance,
             current_identity,
-            signals
+            signals,
+            episode
         )
         
-
         # 🔮 PHASE B.0: Grace Layer — Predictive & Soft Regulation
         # 1. Look ahead: dampen based on predicted future state
         dissonance_delta = self._predictive_dampening(current_dissonance, dissonance_delta, signals)
@@ -157,7 +286,8 @@ class Governor:
             dissonance_delta,
             identity_delta,
             current_dissonance,
-            current_identity
+            current_identity,
+            episode
         )
         
         # Build output
@@ -179,6 +309,13 @@ class Governor:
         
         return output
     
+    def get_clamp_report(self) -> str:
+        """Get human-readable clamp diagnostics report."""
+        return self.clamp_diagnostics.get_summary_report()
+    
+    def get_clamp_metrics(self) -> Dict[str, Any]:
+        """Get clamp diagnostics as dict."""
+        return self.clamp_diagnostics.get_metrics()
 
     def get_health_metrics(self) -> Dict[str, Any]:
         """
@@ -195,6 +332,8 @@ class Governor:
             'total_regulation_events': len(self.history),
             'predictions_made': self.predictions_made,
             'prediction_accuracy': self.predictions_correct / max(1, self.predictions_made),
+            # Include clamp metrics
+            'clamp_metrics': self.clamp_diagnostics.get_metrics(),
         }
 
     def _detect_mode(
@@ -228,7 +367,8 @@ class Governor:
         self,
         current_dissonance: float,
         current_identity: float,
-        signals: CognitiveSignals
+        signals: CognitiveSignals,
+        episode: int = 0
     ) -> Tuple[float, float, Dict[str, Any]]:
         """
         Apply hard constraints. These are ABSOLUTE and cannot be overridden.
@@ -238,31 +378,83 @@ class Governor:
         dd = signals.dissonance_delta
         id_val = signals.identity_delta
         
+        # === DISSONANCE HARD CONSTRAINTS ===
+        
         # CEILING: Prevent dissonance > max_dissonance
         projected_d = current_dissonance + dd
         if projected_d > self.config.max_dissonance:
+            dd_before = dd
             dd = self.config.max_dissonance - current_dissonance - 0.01  # Stay just below
             constraints['capped'] = True
             constraints['reason'] = f"dissonance_ceiling (proj={projected_d:.3f})"
+            
+            # 🔴 Record clamp event
+            self.clamp_diagnostics.record_event(ClampEvent(
+                episode=episode,
+                variable='dissonance',
+                before=dd_before,
+                after=dd,
+                correction=abs(dd_before - dd),
+                layer='hard_constraint',
+                reason='dissonance_ceiling'
+            ))
         
         # FLOOR: Prevent dissonance < min_dissonance
         if projected_d < self.config.min_dissonance:
+            dd_before = dd
             dd = self.config.min_dissonance - current_dissonance + 0.01  # Stay just above
             constraints['capped'] = True
             constraints['reason'] += f" dissonance_floor (proj={projected_d:.3f})"
+            
+            # 🔴 Record clamp event
+            self.clamp_diagnostics.record_event(ClampEvent(
+                episode=episode,
+                variable='dissonance',
+                before=dd_before,
+                after=dd,
+                correction=abs(dd_before - dd),
+                layer='hard_constraint',
+                reason='dissonance_floor'
+            ))
+        
+        # === IDENTITY HARD CONSTRAINTS ===
         
         # IDENTITY FLOOR: Prevent identity collapse
         projected_i = current_identity + id_val
         if projected_i < self.config.min_identity:
+            id_before = id_val
             id_val = self.config.min_identity - current_identity + 0.01
             constraints['boosted'] = True
             constraints['reason'] += f" identity_floor (proj={projected_i:.3f})"
+            
+            # 🔴 Record clamp event
+            self.clamp_diagnostics.record_event(ClampEvent(
+                episode=episode,
+                variable='identity',
+                before=id_before,
+                after=id_val,
+                correction=abs(id_before - id_val),
+                layer='hard_constraint',
+                reason='identity_floor'
+            ))
         
         # IDENTITY CEILING: Prevent identity inflation
         if projected_i > self.config.max_identity:
+            id_before = id_val
             id_val = self.config.max_identity - current_identity - 0.01
             constraints['capped'] = True
             constraints['reason'] += f" identity_ceiling (proj={projected_i:.3f})"
+            
+            # 🔴 Record clamp event
+            self.clamp_diagnostics.record_event(ClampEvent(
+                episode=episode,
+                variable='identity',
+                before=id_before,
+                after=id_val,
+                correction=abs(id_before - id_val),
+                layer='hard_constraint',
+                reason='identity_ceiling'
+            ))
         
         return dd, id_val, constraints
     
@@ -340,7 +532,8 @@ class Governor:
         dd: float,
         id_val: float,
         current_d: float,
-        current_i: float
+        current_i: float,
+        episode: int = 0
     ) -> Tuple[float, float]:
         """Apply mode-specific regulation."""
         
@@ -375,33 +568,47 @@ class Governor:
         
         # Normal mode: no additional modification
         
-        # FINAL HARD CLAMP: Absolute enforcement after all processing
+        # === FINAL HARD CLAMP: Absolute enforcement after all processing ===
+        
         # Clamp dissonance delta
         max_allowed_d = self.config.max_dissonance - current_d
         min_allowed_d = self.config.min_dissonance - current_d
+        dd_before = dd
         dd = np.clip(dd, min_allowed_d - 0.01, max_allowed_d - 0.01)
         
-        # 🔴 CRITICAL FIX: Clamp identity delta too (was missing!)
+        # Record if clamp was applied
+        if abs(dd - dd_before) > 0.0001:
+            self.clamp_diagnostics.record_event(ClampEvent(
+                episode=episode,
+                variable='dissonance',
+                before=dd_before,
+                after=dd,
+                correction=abs(dd_before - dd),
+                layer='final_clamp',
+                reason='final_safety_clamp'
+            ))
+        
+        # Clamp identity delta
         max_allowed_i = self.config.max_identity - current_i
         min_allowed_i = self.config.min_identity - current_i
-        
-        # 📊 CLAMP DIAGNOSTIC: Track controller/clamp alignment
-        id_val_before = id_val
+        id_before = id_val
         id_val = np.clip(id_val, min_allowed_i + 0.01, max_allowed_i - 0.01)
-        correction = abs(id_val_before - id_val)
+        correction = abs(id_before - id_val)
         
-        if correction > 0.001:  # Clamp actually changed the value
-            self.clamp_activations += 1
-            self.clamp_corrections_total += correction
-            self.clamp_correction_history.append(correction)
-            if len(self.clamp_correction_history) > 100:
-                self.clamp_correction_history.pop(0)
+        if correction > 0.0001:  # Clamp actually changed the value
+            self.clamp_diagnostics.record_event(ClampEvent(
+                episode=episode,
+                variable='identity',
+                before=id_before,
+                after=id_val,
+                correction=correction,
+                layer='final_clamp',
+                reason='final_safety_clamp'
+            ))
             
             # Log if clamp is fighting upstream significantly
-            if correction > 0.05:  # More than 5% correction
-                print(f"  [CLAMP ALERT] Upstream suggested {id_val_before:+.3f}, clamped to {id_val:+.3f} (Δ{correction:.3f})")
-        
-        self.upstream_suggestions += 1
+            if correction > self.config.clamp_alert_threshold:
+                print(f"  [CLAMP ALERT] Upstream suggested {id_before:+.3f}, clamped to {id_val:+.3f} (Δ{correction:.3f})")
         
         return dd, id_val
     
