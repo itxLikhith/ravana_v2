@@ -125,6 +125,77 @@ python run_phase_b.py
 
 ---
 
+## 🧪 Phase B.1: Experimental Validation
+
+**Problem**: How do we know intelligence emerged, not cowardice?
+
+**Solution**: Three-way comparison with intelligence dashboard.
+
+### Experimental Protocol
+
+```bash
+# Run all three experiments
+python experiments/runner.py
+
+# Generate intelligence dashboard
+python experiments/visualize.py
+```
+
+| Experiment | Purpose | What It Tests |
+|------------|---------|---------------|
+| **A: Baseline** | No adaptation | Raw clamp metrics |
+| **B: Adaptive** | Normal learning rate | Does adaptation help? |
+| **C: Stress** | High learning rate | Is it learning or drifting? |
+
+### Key Upgrades from Your Analysis
+
+**Nonlinear Penalty Shaping**:
+```python
+penalty = tanh(correction * 2.0)  # Saturate extreme cases
+```
+- Prevents overreaction to catastrophes
+- Preserves sensitivity to subtle patterns
+
+**Positive Signal**:
+```python
+reward += dissonance_utilization_bonus  # For healthy exploration
+```
+- Seeks good, not just avoids bad
+- Prevents "minimally violating, not maximally intelligent"
+
+### 🎯 The Intelligence Dashboard
+
+```
+┌─────────────────────────────────────────────┐
+│  🧠 INTELLIGENCE SIGNATURE                  │
+│                                             │
+│        Exploration (std) ↑                  │
+│                🧠 INTELLIGENT               │
+│       (low clamp, high exploration)         │
+│                ⚖️ CAUTIOUS                  │
+│       (low clamp, low exploration)          │
+│  ─────────────────────────────────→         │
+│  Clamp Rate →                               │
+└─────────────────────────────────────────────┘
+```
+
+**🚨 Red Flag: Cowardice Detection**
+
+If you see:
+- Clamp rate ↓
+- Dissonance range ↓
+
+**Verdict**: You built a coward, not intelligence.
+
+**🧠 Success: Disciplined Curiosity**
+- Clamp rate ↓
+- Dissonance range → (or ↑)
+- Final clamps → ~0
+
+**Verdict**: Intelligence with constitutional awareness.
+
+---
+
 ## License
 
 MIT — Built for the RAVANA-AGI-Research initiative.
