@@ -101,30 +101,82 @@ class PolicyTweakLayer:
     
     def compute_tweak(
         self,
-        raw_d_delta: float,
-        raw_i_delta: float,
-        state_encoding: np.ndarray
-    ) -> Tuple[float, float]:
+        signals: Dict[str, float],
+        governor_decision: Dict[str, Any]
+    ) -> Tuple[float, float, ClampExperience]:
         """
-        Compute policy tweak for raw deltas.
+        Compute adaptive tweak based on current state and governor feedback.
         
-        Returns: (tweaked_d_delta, tweaked_i_delta)
+        Returns: (d_tweak, i_tweak, experience_record)
         """
+        import math
+        
+        # Encode current state
+        state = self.encode_state(signals)
+        
         # Forward pass: state -> tweak
-        tweak = self.weights.T @ state_encoding  # [2] vector
+        tweak = self.weights.T @ state  # [2] vector
         
         # Clip to conservative bounds
         tweak = np.clip(tweak, -self.config.max_tweak, self.config.max_tweak)
         
         # Apply tweaks
-        tweaked_d = raw_d_delta + tweak[0]
-        tweaked_i = raw_i_delta + tweak[1]
+        tweaked_d = signals.get('dissonance_delta', 0.0) + tweak[0]
+        tweaked_i = signals.get('identity_delta', 0.0) + tweak[1]
         
         # Track metrics
         self.total_tweaks += 1
         self.cumulative_tweak_magnitude += np.abs(tweak).sum()
         
-        return tweaked_d, tweaked_i
+        # Nonlinear penalty shaping: tanh prevents overreaction to extremes
+        # Small corrections → nearly linear
+        # Large corrections → saturate (don't over-learn from catastrophes)
+        raw_correction = governor_decision.get('effective_correction', 0.0)
+        nonlinear_penalty = math.tanh(raw_correction * 2.0)  # Scale factor tuned for 0-1 range
+        
+        # 2. Positive signal: dissonance utilization bonus
+        # Reward staying in the "sweet spot" of exploration
+        dissonance = signals.get('dissonance', 0.5)
+        target = 0.6  # Target dissonance (healthy exploration)
+        distance_from_target = abs(dissonance - target)
+        utilization_bonus = max(0, 0.2 - distance_from_target)  # 0.2 max bonus
+        
+        # Combined reward: avoid bad + seek good
+        if governor_decision.get('clamp_occurred', False):
+            reward = -nonlinear_penalty * self.config.clamp_penalty
+        else:
+            reward = utilization_bonus * self.config.exploration_bonus
+        
+        # Create experience record
+        experience = ClampExperience(
+            episode=governor_decision.get('episode', 0),
+            state_encoding=state,
+            variable=governor_decision.get('variable', 'dissonance'),
+            correction=governor_decision.get('correction', 0.0),
+            layer=governor_decision.get('layer', 'unknown')
+        )
+        experience.reward = reward
+        self.experiences.append(experience)
+        
+        # Gradient update (simplified policy gradient)
+        # If we got clamped, nudge weights AWAY from that state's direction
+        gradient = np.outer(experience.state_encoding, 
+                           [experience.correction if experience.variable == 'dissonance' else 0,
+                            experience.correction if experience.variable == 'identity' else 0])
+        
+        # Momentum update
+        self.velocity = (self.config.momentum * self.velocity + 
+                        (1 - self.config.momentum) * gradient)
+        
+        # Apply gradient with learning rate
+        self.weights -= self.config.learning_rate * self.velocity
+        
+        # Decay (forget slowly)
+        self.weights *= self.config.decay_rate
+        
+        self.learning_steps += 1
+        
+        return tweaked_d, tweaked_i, experience
     
     def learn_from_clamp(
         self,
