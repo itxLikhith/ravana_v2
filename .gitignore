@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# ML/Training
+checkpoints/
+*.pt
+*.pth
+*.ckpt
+wandb/
+runs/
+*.log
+
+# Data
+*.csv
+*.json
+!results/training_summary.json
+!config/*.json
+data/
+datasets/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.venv/
+venv/
+
+# Results (keep structure, ignore large files)
+results/*.png
+results/*.pdf
+results/checkpoints/

@@ -1,0 +1,35 @@
+{
+  "total_episodes": 1000,
+  "elapsed_seconds": 0.07134079933166504,
+  "final_state": {
+    "dissonance": 0.5325175411001288,
+    "identity": 0.5264931237708409,
+    "episode": 1000,
+    "cycle": 1000,
+    "wisdom": 39.579999999999956
+  },
+  "governor_stats": {
+    "current_mode": "plateau",
+    "mode_distribution": {
+      "plateau": 20
+    },
+    "total_cycles": 1000,
+    "constraint_activations": 0,
+    "recent_dissonance_variance": 0.004771234726573681
+  },
+  "resolution_stats": {
+    "total_events": 1000,
+    "accumulated_partial": 0.04,
+    "threshold": 0.15,
+    "progress_to_wisdom": 0.26666666666666666,
+    "current_streak": 0,
+    "recent_resolution_rate": 0.0
+  },
+  "identity_stats": {
+    "strength": 0.5,
+    "momentum": 0.026493123770840947,
+    "stability": 0.5,
+    "trend": 0.0,
+    "history_length": 1
+  }
+}
