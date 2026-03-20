@@ -38,6 +38,12 @@ from .planning import (
     PlanningConfig,
     SimulatedFuture
 )
+from .environment import (
+    NonStationaryEnvironment,
+    EnvironmentConfig,
+    HiddenDynamics,
+    WorldState
+)
 
 __all__ = [
     # Phase A
@@ -75,4 +81,9 @@ __all__ = [
     "MicroPlanner",
     "PlanningConfig",
     "SimulatedFuture",
+    # Phase E
+    "NonStationaryEnvironment",
+    "EnvironmentConfig",
+    "HiddenDynamics",
+    "WorldState",
 ]
