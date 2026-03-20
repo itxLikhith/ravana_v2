@@ -338,7 +338,9 @@ class BeliefReasoner:
         return "explore_safe"
     
     def get_reasoning_status(self) -> Dict[str, Any]:
-        """Return full reasoning status."""
+        """
+        Return full reasoning status.
+        """
         total_confidence = sum(h.confidence for h in self.hypotheses)
         
         return {
@@ -353,3 +355,23 @@ class BeliefReasoner:
             'dominant_boundary': self.get_dominant_hypothesis().boundary_estimate if self.hypotheses else None,
             'dominant_confidence': self.get_dominant_hypothesis().confidence if self.hypotheses else None,
         }
+    
+    def get_belief_state(self) -> List[Hypothesis]:
+        """
+        Return the current set of hypotheses.
+        """
+        return self.hypotheses
+
+    @property
+    def current_belief(self) -> float:
+        """Current best belief estimate."""
+        dominant = self.get_dominant_hypothesis()
+        return dominant.boundary_estimate if dominant else 0.5
+    
+    @property  
+    def current_uncertainty(self) -> float:
+        """Current uncertainty estimate."""
+        dominant = self.get_dominant_hypothesis()
+        if not dominant:
+            return 0.5
+        return 1.0 - dominant.confidence

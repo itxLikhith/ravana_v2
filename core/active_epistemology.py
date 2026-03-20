@@ -342,8 +342,8 @@ class ActiveEpistemologyLayer:
         Returns: (action, metadata)
         """
         # Get current belief state
-        belief_state = self.belief.get_belief_state()
-        hypotheses = belief_state.get('hypotheses', {})
+        belief_list = self.belief.get_belief_state()
+        hypotheses = {i: {'id': h.id, 'belief': h.boundary_estimate, 'confidence': h.confidence, 'uncertainty': h.uncertainty} for i, h in enumerate(belief_list)}
         
         if len(hypotheses) < 2:
             # No competing hypotheses - just act normally
