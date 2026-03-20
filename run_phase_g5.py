@@ -2,34 +2,22 @@
 """
 RAVANA v2 — Phase G.5: Surgical Probing Test
 From "uncertainty triggered" → "KL-maximizing experiment design"
-
-Test: Does RAVANA select probes that maximally separate H1 vs H2?
 """
 
 import sys
 sys.path.insert(0, '/home/workspace/ravana_v2')
 
 from core import (
-    Governor, GovernorConfig, ResolutionEngine, IdentityEngine,
-    StateManager, TrainingConfig
-)
-from core import (
+    Governor, GovernorConfig,
+    ResolutionEngine, IdentityEngine, StateManager,
     StrategyWithLearning, StrategyLayer, StrategyConfig,
-    StrategyLearningLayer, LearningConfig, BehavioralContext
-)
-from core import (
-    IntentEngine, IntentConfig, IntentAwareStrategy
-)
-from core import (
-    BeliefReasoner, BeliefConfig, Hypothesis
-)
-from core import (
-    ActiveEpistemology, VoIConfig
-)
-from core import (
+    StrategyLearningLayer, LearningConfig, BehavioralContext,
+    IntentEngine, IntentConfig, IntentAwareStrategy,
+    BeliefReasoner, BeliefConfig, Hypothesis,
+    ActiveEpistemology, VoIConfig,
     SurgicalProbeSelector, SurgicalProbeConfig, ProbeType
 )
-from core.environment import NonStationaryEnvironment, EnvironmentConfig, WorldState
+from core.environment import NonStationaryEnvironment, EnvironmentConfig
 
 import numpy as np
 import json
@@ -51,7 +39,6 @@ class G5Config:
     # Initial confidences (alternative should be competitive)
     dominant_confidence: float = 0.50
     alternative_confidence: float = 0.45
-
 
 class SurgicalProbeTest:
     """Test surgical probing with KL-maximizing probe selection."""
@@ -81,7 +68,7 @@ class SurgicalProbeTest:
         self.generic_probe_count: int = 0
         
     def _get_context(self) -> BehavioralContext:
-        """Extract behavioral context."""
+        """Extract behavioral context (simplified)."""
         history = self.manager.history[-10:] if len(self.manager.history) >= 10 else self.manager.history
         
         if len(history) >= 3:
@@ -93,23 +80,30 @@ class SurgicalProbeTest:
         recent_clamps = sum(1 for h in history if h.get('constraint_activated', False))
         clamp_rate = recent_clamps / len(history) if history else 0.0
         
-        # Calculate variance
         if len(history) >= 5:
             recent_d_full = [h['post_dissonance'] for h in history[-5:]]
             d_variance = np.var(recent_d_full)
         else:
             d_variance = 0.0
         
+        # Calculate identity drift (simplified)
+        if len(history) >= 2:
+            recent_i = [h['post_identity'] for h in history[-2:]]
+            i_drift = recent_i[-1] - recent_i[0]
+        else:
+            i_drift = 0.0
+        
         return BehavioralContext(
             dissonance=self.manager.state.dissonance,
             identity=self.manager.state.identity,
             clamp_rate=clamp_rate,
             dissonance_trend=d_trend,
+            identity_drift=i_drift,
+            stability=1.0 - min(1.0, d_variance * 10),
             dissonance_variance=d_variance,
-            mode_switches=self.intent_strategy.strategy.mode_switches,
-            recent_mode=self.intent_strategy.strategy.current_mode.value
+            recent_resolution_success=0.6
         )
-    
+
     def train(self) -> Dict[str, Any]:
         """Run surgical probing test."""
         print("=" * 70)
@@ -171,7 +165,7 @@ class SurgicalProbeTest:
                 self.surgical_probe_count += 1
                 
                 # Calculate actual KL achieved (for learning)
-                pre_belief = self.belief.get_current_belief()
+                pre_belief = self.belief.current_belief
                 pre_uncertainty = self.belief.current_uncertainty
                 
                 # Simulate probe effect (simplified)
@@ -193,7 +187,7 @@ class SurgicalProbeTest:
                 )
                 
                 # Calculate actual separation achieved
-                post_belief = self.belief.get_current_belief()
+                post_belief = self.belief.current_belief
                 belief_shift = abs(post_belief - pre_belief)
                 
                 # Record probe result
@@ -229,7 +223,7 @@ class SurgicalProbeTest:
             
             # Log
             if (episode + 1) % self.config.log_interval == 0 or episode < self.config.debug_first_n:
-                belief = self.belief.get_current_belief()
+                belief = self.belief.current_belief
                 uncertainty = self.belief.current_uncertainty
                 print(f"{marker}EP{episode+1:04d} | D={self.manager.state.dissonance:.2f} | "
                       f"Belief={belief:.2f}±{uncertainty:.2f} | "
@@ -257,7 +251,7 @@ class SurgicalProbeTest:
             print(f"   {probe_type:20s}: {data['success_rate']:.1%} success ({data['n_probes']} probes)")
         
         # Final belief state
-        final_belief = self.belief.get_current_belief()
+        final_belief = self.belief.current_belief
         final_uncertainty = self.belief.current_uncertainty
         
         print(f"\n🧠 BELIEF EVOLUTION:")
