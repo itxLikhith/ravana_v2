@@ -30,6 +30,10 @@ __all__ = [
     "LearnedWorldModel", "WorldModelConfig", "PredictedState", "AnomalyEvent", "FalseWorldTester",
     "BeliefReasoner", "BeliefConfig", "Hypothesis", "EvidenceEvent",
     "ActiveEpistemology", "VoIConfig", "InformationGainMethod", "HypothesisDrivenActionSelector",
+    "OccamLayer",
+    "OccamConfig", 
+    "HypothesisScore",
+    "DisciplinedBeliefSystem",
 ]
 
 # Phase G.5
@@ -52,10 +56,15 @@ __all__.extend([
     "GenerationConfig",
     "HypothesisType",
     "GeneratedHypothesis"
+    "OccamLayer",
+    "OccamConfig", 
+    "HypothesisScore",
+    "DisciplinedBeliefSystem",
 ])
 
 # Phase J
 from .hypothesis_generation import (
+from .occam_layer import OccamLayer, OccamConfig, HypothesisScore, DisciplinedBeliefSystem
     HypothesisGenerator,
     GenerationConfig,
     HypothesisType,
