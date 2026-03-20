@@ -22,6 +22,7 @@ from core import (
     IntentEngine, IntentConfig, IntentAwareStrategy,
     MicroPlanner, PlanningConfig,
     NonStationaryEnvironment, EnvironmentConfig,
+    StrategyWithLearning,
 )
 from core.predictive_world import (
     LearnedWorldModel, WorldModelConfig, FalseWorldTester
@@ -131,7 +132,10 @@ class PhaseFTrainingPipeline:
         
         for episode in range(self.config.get('total_episodes', 2000)):
             # Environment step (may change boundary, etc.)
-            self.env.step(episode)
+            world_state = self.env.step(episode)
+            
+            # Extract difficulty from world state
+            difficulty = world_state.difficulty_level
             
             # Get pre-state
             pre_state = {
@@ -147,12 +151,7 @@ class PhaseFTrainingPipeline:
             mode, mode_info = self.intent_strategy.select_mode(context, clamp_events)
             
             # Execute step
-            difficulty = self.env.get_difficulty(episode)
-            correctness = self.env.simulate_outcome(
-                difficulty, 
-                self.manager.state.dissonance,
-                self.manager.state.identity
-            )
+            correctness = self._simulate_outcome(difficulty)
             
             step_record = self.manager.step(
                 correctness=correctness,
@@ -171,7 +170,7 @@ class PhaseFTrainingPipeline:
             mode_int = self._mode_to_int(mode)
             anomaly = self.world.observe(
                 episode, pre_state, mode_int, post_state, 
-                self.env.get_boundary_state()
+                self.env.boundary_base
             )
             
             if anomaly:
@@ -231,6 +230,14 @@ class PhaseFTrainingPipeline:
             return True
         
         return False
+    
+    def _simulate_outcome(self, difficulty: float) -> bool:
+        """Simulate episode outcome based on difficulty."""
+        import random
+        # Higher difficulty = lower success rate
+        base_success = 0.7
+        success_rate = base_success - (difficulty - 0.3) * 0.4
+        return random.random() < success_rate
     
     def _log_progress(self, episode: int):
         """Log progress with world model info."""
@@ -314,10 +321,10 @@ def main():
     
     # Strategy and intent
     strategy = StrategyLayer(StrategyConfig())
-    learning = StrategyWithLearning(strategy, LearningConfig())
+    learning = StrategyWithLearning(strategy)  # Remove LearningConfig, let it use default
     intent = IntentEngine(IntentConfig())
     planner = MicroPlanner(PlanningConfig())
-    intent_strategy = IntentAwareStrategy(strategy, learning, intent, planner)
+    intent_strategy = IntentAwareStrategy(strategy, learning, intent)
     
     # Environment
     env = NonStationaryEnvironment(EnvironmentConfig())

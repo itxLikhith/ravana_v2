@@ -337,3 +337,33 @@ class StrategyWithLearning:
             self.strategy.mode_switches += 1
         
         return best_mode
+    
+    def record_mode_usage(
+        self,
+        mode: ExplorationMode,
+        episode: int,
+        pre_state: Dict[str, Any],
+        post_state: Dict[str, Any],
+        clamp_events: List[Dict]
+    ):
+        """Delegate to learning layer to record mode usage and outcome."""
+        # Convert pre_state/post_state to BehavioralContext-like format
+        # for the learning layer
+        from core.strategy import BehavioralContext
+        
+        context = BehavioralContext(
+            dissonance=post_state.get('dissonance', 0.5),
+            identity=post_state.get('identity', 0.5),
+            clamp_rate=len(clamp_events) / max(1, episode) if episode > 0 else 0.0,
+            dissonance_trend=post_state.get('dissonance', 0.5) - pre_state.get('dissonance', 0.5),
+            identity_drift=0.0,
+            stability=0.5,
+            dissonance_variance=0.0,
+            recent_resolution_success=0.5
+        )
+        
+        self.learning.record_mode_usage(mode, episode, pre_state, post_state, clamp_events)
+    
+    def get_learning_status(self) -> Dict[str, Any]:
+        """Return learning status summary."""
+        return self.learning.get_learning_status()
