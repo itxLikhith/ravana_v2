@@ -16,7 +16,8 @@ from core.meta2_cognition import (
     Meta2Config,
     EpistemicCritiqueType
 )
-from core.hypothesis_generation import HypothesisGenerator, HypothesisType
+from core.hypothesis_generation import HypothesisGenerator, HypothesisType, GenerationConfig
+from core.meta2_integration import Meta2IntegratedGenerator, Meta2GenerationConfig
 
 
 @dataclass
@@ -90,6 +91,26 @@ class Meta2TestEnvironment:
     def __init__(self):
         self.results: List[Dict[str, Any]] = []
         self.meta2_engine = Meta2CognitionEngine()
+        # Create Meta² integrated generator
+        self.meta2_config = Meta2Config()
+        self.meta2 = Meta2CognitionEngine(self.meta2_config)
+        
+        # Create hypothesis generator with Meta² integration
+        base_generator = HypothesisGenerator(GenerationConfig(
+            max_hypotheses=6,
+            min_episodes_between_generations=10
+        ))
+        
+        integration_config = Meta2GenerationConfig(
+            min_epiphanies_for_expansion=1,
+            systematic_failure_rate_threshold=0.3
+        )
+        
+        self.integrated_generator = Meta2IntegratedGenerator(
+            base_generator=base_generator,
+            meta2_engine=self.meta2,
+            config=integration_config
+        )
     
     def run_scenario(self, scenario: Meta2TestScenario) -> Dict[str, Any]:
         """Run a single Meta² test scenario."""
