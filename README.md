@@ -31,23 +31,59 @@ The system now has **constitutional enforcement**: no behavioral layer can overr
 - **Constraint hits**: 8/100 (curious but disciplined)
 - **Mode switches**: 31 (responsive, not stuck in loops)
 
-### Clamp Diagnostics
+---
 
-The governor now tracks:
-- `clamp_activations` — how often the clamp intervenes
-- `clamp_corrections_total` — cumulative correction magnitude
-- `upstream_suggestions` — total controller recommendations
-- `clamp_correction_history` — per-episode correction log
+## 🧠 Phase B: Adaptive Intelligence
 
-**Ideal state**: Clamp acts as safety net, not active controller.
+**Core insight**: Clamp events aren't failures — they're **teachable moments**.
+
+Every time the constitution overrides the controller, the system learns *how not to need correction*.
+
+### The Adaptation Engine
+
+```
+Raw Signals → Policy Tweak Layer → Governor → Clamp Check → Learn
+```
+
+**Design constraints**:
+- **Lightweight**: ~100 lines core logic
+- **Reversible**: Can disable instantly without breaking safety
+- **Measurable**: Clear before/after comparison
+
+### Learning Signal
+
+```python
+reward = exploration_bonus - clamp_penalty * correction_magnitude
+```
+
+- **Dual objective**: Explore healthy dissonance while avoiding constitutional violation
+- **Pre-clamp avoidance**: Learn to stay away from boundary, not just bounce off it
+
+### Key Metrics
+
+| Metric | Interpretation |
+|--------|----------------|
+| `alignment_score` | How often upstream thinks correctly |
+| `clamp_rate` | Friction with constitutional reality |
+| `final_clamp_clamps` | 🚨 Canary metric (should trend to ~0) |
+| `mean_tweak_magnitude` | How much adaptation is intervening |
+| `mean_recent_reward` | Learning progress indicator |
 
 ---
 
-## 🚀 Phase B: Emergent Intelligence
+## Clamp Diagnostics (Constitutional Court)
 
-Next: Signal interpretation, strategy formation, and meta-learning — built on top of stable physics.
+Every correction is now logged as a **ClampEvent**:
 
-**Principle**: Don't add intelligence. Let intelligence emerge on top of stable physics.
+```python
+episode, variable, before, after, correction, layer, reason
+```
+
+**Reports**:
+- `get_clamp_report()` — Human-readable summary
+- `results/clamp_events.json` — Full event log for analysis
+
+**Phase B usage**: Feed clamp events to adaptation layer as negative reward.
 
 ---
 
@@ -55,26 +91,36 @@ Next: Signal interpretation, strategy formation, and meta-learning — built on 
 
 ```
 core/
-  governor.py      — Central regulation (first-class citizen)
+  governor.py        — Central regulation (first-class citizen)
   identity.py        — Identity dynamics with momentum
   resolution.py      — Conflict resolution engine
   state.py           — State manager (wires components)
+  adaptation.py      — 🆕 Phase B: Learning from corrections
 
 probes/
-  constraint_stress.py      — Monitor constraint system
-  exploration_pressure.py     — Track exploration drive
-  learning_signal.py        — Extract learning indicators
+  constraint_stress.py     — Monitor constraint system
+  exploration_pressure.py  — Track exploration drive
+  learning_signal.py       — Extract learning indicators
 
 training/
-  pipeline.py        — Training orchestration
+  pipeline.py        — Phase A training orchestration
+
+run_training.py      — Phase A entry point
+run_phase_b.py       — 🆕 Phase B entry point (adaptive)
 ```
 
 ---
 
 ## Quick Start
 
+**Phase A** (stable physics):
 ```bash
 python run_training.py
+```
+
+**Phase B** (adaptive intelligence):
+```bash
+python run_phase_b.py
 ```
 
 ---
