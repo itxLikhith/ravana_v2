@@ -53,3 +53,11 @@ __all__.extend([
     "HypothesisType",
     "GeneratedHypothesis"
 ])
+
+# Phase J
+from .hypothesis_generation import (
+    HypothesisGenerator,
+    GenerationConfig,
+    HypothesisType,
+    GeneratedHypothesis
+)

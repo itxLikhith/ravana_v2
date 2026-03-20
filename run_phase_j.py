@@ -105,10 +105,7 @@ class PhaseJTest:
         ))
         
         # Belief layer
-        self.belief = BeliefReasoner(BeliefConfig(
-            initial_boundary=0.75,
-            initial_uncertainty=0.50
-        ))
+        self.belief = BeliefReasoner(BeliefConfig())
         
         # Surgical probing layer
         self.surgical = SurgicalProbeSelector(SurgicalProbeConfig())
@@ -138,7 +135,7 @@ class PhaseJTest:
         return {
             'dissonance': self.manager.state.dissonance,
             'identity': self.manager.state.identity,
-            'clamp_rate': self.manager.governor.clamp_activations / max(1, len(self.manager.governor.history)),
+            'clamp_rate': (self.manager.governor.clamp_diagnostics.d_clamp_activations + self.manager.governor.clamp_diagnostics.i_clamp_activations) / max(1, len(self.manager.governor.history)),
             'dissonance_trend': self.surgical._compute_d_trend() if hasattr(self.surgical, '_compute_d_trend') else 0.0,
             'episode': self.manager.state.episode
         }
@@ -160,7 +157,7 @@ class PhaseJTest:
             true_boundary = env_state["true_boundary"]
             
             # Get current belief hypotheses
-            current_hypotheses = self.belief.get_hypothesis_list()
+            current_hypotheses = self.belief.get_belief_state()
             
             # SURGICAL PROBING: Select KL-maximizing probe
             context = self._get_context()
@@ -186,9 +183,19 @@ class PhaseJTest:
             pre_state = {'dissonance': self.manager.state.dissonance}
             post_state = {'dissonance': self.manager.state.dissonance}
             
-            self.belief.update_with_outcome(
-                pre_state, post_state, correctness, clamp_events
-            )
+            # Create evidence event for belief update
+            if clamp_events:
+                for event in clamp_events:
+                    evidence = EvidenceEvent(
+                        episode=event.get('episode', episode),
+                        observed_boundary=self.belief.current_belief,  # Best estimate
+                        predicted_d=pre_state['dissonance'],
+                        actual_d=post_state['dissonance'],
+                        mode=0,
+                        clamp_occurred=event.get('capped', False),
+                        context_snapshot=context
+                    )
+                    self.belief.observe_evidence(evidence, env_state["true_boundary"])
             
             # Record probe effectiveness
             if probe_type is not None:
@@ -223,7 +230,7 @@ class PhaseJTest:
                 
                 if new_hypothesis:
                     # Add to belief system
-                    self.belief.add_generated_hypothesis(new_hypothesis)
+                    # New hypothesis added to generator, not directly to belief
                     
                     self.generation_events.append({
                         'episode': episode,
@@ -248,7 +255,7 @@ class PhaseJTest:
                 'belief_boundary': self.belief.current_belief,
                 'uncertainty': uncertainty,
                 'n_hypotheses': len(current_hypotheses),
-                'generated_types': list(set(h.hypothesis_type.name for h in current_hypotheses))
+                'generated_types': list(set(h.hypothesis_type.name if hasattr(h, 'hypothesis_type') else 'constant' for h in current_hypotheses))
             })
         
         # Final analysis
