@@ -3,6 +3,7 @@ RAVANA v2 Core Modules
 
 Phase A: Governor + Resolution + Identity
 Phase B: Adaptation (learning from clamp events)
+Phase B.5: Strategy (deliberate mode selection)
 """
 
 from .governor import Governor, GovernorConfig, RegulationMode, ClampDiagnostics
@@ -10,6 +11,13 @@ from .resolution import ResolutionEngine, ResolutionMemory
 from .identity import IdentityEngine, IdentityState
 from .state import StateManager, CognitiveState
 from .adaptation import PolicyTweakLayer, AdaptiveGovernorBridge, AdaptationConfig
+from .strategy import (
+    StrategyLayer, 
+    StrategyConfig, 
+    ExplorationMode,
+    ModeSelection,
+    BehavioralContext
+)
 
 __all__ = [
     # Phase A
@@ -27,4 +35,10 @@ __all__ = [
     "PolicyTweakLayer",
     "AdaptiveGovernorBridge",
     "AdaptationConfig",
+    # Phase B.5
+    "StrategyLayer",
+    "StrategyConfig",
+    "ExplorationMode",
+    "ModeSelection",
+    "BehavioralContext",
 ]
