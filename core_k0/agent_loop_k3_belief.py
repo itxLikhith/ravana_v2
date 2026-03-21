@@ -69,11 +69,36 @@ class K3_Belief_Agent(K2_Agent):
         # Prior for Bayesian update (assume regimes are equally likely)
         self.prior_good = 0.5
         
+    def _get_prefs_as_dict(self, context_key: str) -> Dict[str, float]:
+        """Safely get preferences as dictionary, handling PolicyWeights or dict."""
+        raw = self.context_weights.get(context_key, None)
+        
+        if raw is None:
+            return {"explore": 0.5, "exploit": 0.5, "conserve": 0.5}
+        
+        if isinstance(raw, dict):
+            return {
+                "explore": raw.get("explore", 0.5),
+                "exploit": raw.get("exploit", 0.5),
+                "conserve": raw.get("conserve", 0.5)
+            }
+        
+        # PolicyWeights object
+        return {
+            "explore": getattr(raw, "explore", 0.5),
+            "exploit": getattr(raw, "exploit", 0.5),
+            "conserve": getattr(raw, "conserve", 0.5)
+        }
+    
     def select_action(self, obs: Dict[str, float]) -> AgentAction:
         """
-        K3: Belief-based action selection.
+        K3: Belief-informed action selection (minimal interference with K2).
         
-        Uses inferred regime to compute expected utility of each action.
+        Strategy:
+        1. Compute K2's normal preferences
+        2. Adjust preferences using belief (information layer)
+        3. Let K2's proven decision logic run with adjusted prefs
+        4. Only override in critical moments
         """
         self.episode += 1
         self.state.update_from_observation(obs, self.episode)
@@ -93,88 +118,80 @@ class K3_Belief_Agent(K2_Agent):
         # Update exploration tracking
         self.steps_since_explore += 1
         
-        # === K3: BELIEF-BASED DECISION ===
+        # === K3: BELIEF-ADJUSTED DECISION ===
         
         # Get K2's context key
         context_key = self.state.get_context_key(E, U, trend)
         
-        # Compute expected utility of each action using current belief
-        # GOOD regime dynamics:
-        good_rewards = {
-            AgentAction.EXPLORE: 0.2,
-            AgentAction.EXPLOIT: 0.6,
-            AgentAction.CONSERVE: 0.1
-        }
+        # Get K2's learned preferences for this context (safely as dict)
+        base_prefs = self._get_prefs_as_dict(context_key)
         
-        # BAD regime dynamics:
-        bad_rewards = {
-            AgentAction.EXPLORE: 0.3,   # More valuable (info needed)
-            AgentAction.EXPLOIT: -0.8,  # DANGEROUS
-            AgentAction.CONSERVE: -0.3  # Deadly to wait
-        }
-        
-        # Expected value = belief_good * reward_good + belief_bad * reward_bad
+        # Compute belief-based adjustment
+        # GOOD regime: boost exploit, penalize conserve
+        # BAD regime: penalize exploit, boost explore
         belief_bad = 1.0 - self.belief_good
         
-        expected_values = {}
-        for action in [AgentAction.EXPLORE, AgentAction.EXPLOIT, AgentAction.CONSERVE]:
-            expected_values[action] = (
-                self.belief_good * good_rewards[action] +
-                belief_bad * bad_rewards[action]
-            )
+        # Adjustment factors (subtle, not replacement)
+        if self.belief_good > 0.6:
+            # Likely GOOD: exploit is safer, conserve less needed
+            adjusted_prefs = {
+                "explore": base_prefs["explore"] * 0.9,  # Less need to explore
+                "exploit": base_prefs["exploit"] * 1.2,  # Safer to exploit
+                "conserve": base_prefs["conserve"] * 0.8  # Less need to conserve
+            }
+        elif self.belief_good < 0.4:
+            # Likely BAD: exploit is dangerous, need info
+            adjusted_prefs = {
+                "explore": base_prefs["explore"] * 1.3,  # More need to explore
+                "exploit": base_prefs["exploit"] * 0.5,  # Dangerous to exploit
+                "conserve": base_prefs["conserve"] * 1.0  # Neutral
+            }
+        else:
+            # Uncertain: trust K2's learned preferences
+            adjusted_prefs = base_prefs
         
-        # === SURVIVAL TRIGGERS (still apply) ===
+        # Normalize to prevent extreme values
+        for k in adjusted_prefs:
+            adjusted_prefs[k] = np.clip(adjusted_prefs[k], 0.1, 0.9)
         
-        if E < self.energy_critical:
-            # Near death: trust belief if confident, else explore for info
-            if abs(self.belief_good - 0.5) > 0.3:
-                # Confident belief: pick best action for that regime
-                best = max(expected_values, key=expected_values.get)
-                if best == AgentAction.EXPLORE:
-                    self.steps_since_explore = 0
-                return best
-            else:
-                # Uncertain: must explore to get more information
-                self.steps_since_explore = 0
-                return AgentAction.EXPLORE
+        # Temporarily override context_weights for this decision
+        original_weights = self.context_weights.get(context_key, {})
+        self.context_weights[context_key] = adjusted_prefs
         
-        if self.steps_without_resource_gain > 15:
-            # Starving: need info about regime
-            mode = self._get_exploration_mode()
-            if mode != ExplorationMode.DISABLED and self.belief_good < 0.7:
-                # Not confident about GOOD regime → check
-                self.steps_since_explore = 0
-                return AgentAction.EXPLORE
-            return AgentAction.CONSERVE
+        # === CRITICAL MOMENT OVERRIDES ===
         
-        # === ADAPTIVE EXPLORATION FLOOR ===
+        # Near death + confident about BAD regime → never exploit
+        if E < self.energy_critical and self.belief_good < 0.3:
+            self.context_weights[context_key] = original_weights  # Restore
+            return AgentAction.EXPLORE  # Must get info
         
-        if self.steps_since_explore > 10:
+        # Starving + uncertain → gather info
+        if self.steps_without_resource_gain > 15 and abs(self.belief_good - 0.5) < 0.2:
             mode = self._get_exploration_mode()
             if mode != ExplorationMode.DISABLED:
-                # Information-seeking: explore if belief is uncertain
-                if abs(self.belief_good - 0.5) < 0.2:
-                    # Very uncertain: definitely explore
-                    self.steps_since_explore = 0
-                    return AgentAction.EXPLORE
-                else:
-                    # Somewhat certain: use expected utility
-                    best = max(expected_values, key=expected_values.get)
-                    if best == AgentAction.EXPLORE:
-                        self.steps_since_explore = 0
-                    return best
+                self.steps_since_explore = 0
+                self.context_weights[context_key] = original_weights  # Restore
+                return AgentAction.EXPLORE
+        
+        # === NORMAL POLICY: K2 WITH ADJUSTED PREFERENCES ===
+        
+        # Use K2's proven decision logic with adjusted preferences
+        if U > self.uncertainty_high and E > self.energy_low:
+            action = self._get_action_by_expected_utility(context_key)
+        elif E < self.energy_low:
+            action = AgentAction.CONSERVE
+        else:
+            action = self._get_action_by_expected_utility(context_key)
+        
+        # Restore original weights after decision
+        if original_weights:
+            self.context_weights[context_key] = original_weights
+        
+        # Track if this was exploration
+        if action == AgentAction.EXPLORE:
             self.steps_since_explore = 0
         
-        # === NORMAL POLICY: BELIEF-DRIVEN ===
-        
-        if U > self.uncertainty_high and E > self.energy_low:
-            return self._get_action_by_expected_utility(context_key)
-        elif E < self.energy_low:
-            return AgentAction.CONSERVE
-        else:
-            # Stable: use expected utility from belief
-            best = max(expected_values, key=expected_values.get)
-            return best
+        return action
     
     def step(self, env) -> Dict[str, Any]:
         """Execute step with belief updating from exploration signals."""
