@@ -37,10 +37,16 @@ class ActionOutcome:
 
 @dataclass
 class PolicyWeights:
-    """Simple learned preferences for each action."""
+    """Simple learned preferences for each action with confidence tracking."""
     explore: float = 0.5
     exploit: float = 0.5
     conserve: float = 0.5
+    visit_count: int = 0  # NEW: Track visits to this context
+    
+    @property
+    def confidence(self) -> float:
+        """Confidence based on visit frequency (prevents early overfitting)."""
+        return min(1.0, self.visit_count / 10.0)  # Max confidence at 10 visits
     
     def normalize(self):
         """Keep weights in [0, 1] range."""
@@ -88,13 +94,21 @@ class AgentState:
         if len(self.outcome_history) > 100:
             self.outcome_history = self.outcome_history[-100:]
     
-    def get_context_key(self, energy: float, uncertainty: float, trend: float) -> str:
-        """Discretize context for learning."""
-        # Bucket into coarse categories
+    def get_context_key(self, energy: float, uncertainty: float, trend: float, failure_streak: int = 0) -> str:
+        """UPGRADED: Discretize context with trend and failure streak buckets."""
+        # Energy bucket
         e_bucket = "low" if energy < 0.25 else "med" if energy < 0.5 else "high"
+        
+        # Uncertainty bucket  
         u_bucket = "low" if uncertainty < 0.3 else "high"
+        
+        # NEW: Trend bucket (rising/stable/falling)
         t_bucket = "falling" if trend < -0.02 else "rising" if trend > 0.02 else "stable"
-        return f"{e_bucket}_{u_bucket}_{t_bucket}"
+        
+        # NEW: Failure streak bucket (0, 1-2, 3+)
+        f_bucket = "0" if failure_streak == 0 else "1-2" if failure_streak <= 2 else "3+"
+        
+        return f"{e_bucket}_{u_bucket}_{t_bucket}_{f_bucket}"
 
 
 class K2_Agent:
@@ -162,85 +176,119 @@ class K2_Agent:
     
     def _learn_from_outcome(self, outcome: ActionOutcome):
         """
-        Update policy based on what happened.
-        
-        Simple rule-based learning (no neural nets):
-        - Positive energy change → strengthen action weight
-        - Near-death failure → strongly penalize
-        - Context-specific tracking
+        UPGRADED: Confidence-weighted learning with gated near-death boost.
         """
-        lr = self._get_effective_learning_rate()
         context_key = self.state.get_context_key(
             outcome.context["energy"],
             outcome.context["uncertainty"],
-            outcome.context["trend"]
+            outcome.context["trend"],
+            self.consecutive_exploration_failures  # Include failure streak
         )
         
         # Initialize context weights if new
         if context_key not in self.context_weights:
             self.context_weights[context_key] = {
-                "explore": 0.5, "exploit": 0.5, "conserve": 0.5
+                "explore": 0.5, "exploit": 0.5, "conserve": 0.5,
+                "visits": 0  # Track visits for confidence
             }
         
-        action_name = outcome.action.value
+        # Increment visit count
+        self.context_weights[context_key]["visits"] = self.context_weights[context_key].get("visits", 0) + 1
+        visits = self.context_weights[context_key]["visits"]
+        confidence = min(1.0, visits / 10.0)  # Confidence builds over 10 visits
         
-        # Update based on outcome
-        if outcome.delta_energy > 0:
-            # Success: strengthen this action in this context
-            self.context_weights[context_key][action_name] += lr * 0.5
-            
-            # Special bonus for exploration that actually gains energy
-            if outcome.action == AgentAction.EXPLORE:
+        # Base learning rate with confidence gating
+        lr = self.learning_rate * confidence
+        
+        # TAMED: Near-death learning (2x instead of 3x, only if confidence > 0.3)
+        if self._is_near_death() and confidence > 0.3:
+            lr *= 2.0  # Boost but don't overreact
+        
+        action_name = outcome.action.value
+        reward = 1.0 if outcome.delta_energy > 0 else -0.5
+        if not outcome.survived:
+            reward = -2.0  # Death is strong negative signal
+        
+        # Confidence-weighted update
+        self.context_weights[context_key][action_name] += lr * reward
+        
+        # Special handling for exploration
+        if outcome.action == AgentAction.EXPLORE:
+            if outcome.exploration_success:
                 self.policy.explore += lr * 0.3
                 self.consecutive_exploration_failures = 0
-        else:
-            # Failure: weaken this action
-            penalty = lr * 0.3
-            if not outcome.survived:
-                # Death is a strong signal
-                penalty *= 2.0
-            self.context_weights[context_key][action_name] -= penalty
-            
-            if outcome.action == AgentAction.EXPLORE:
+            else:
                 self.consecutive_exploration_failures += 1
+                self.policy.explore -= lr * 0.2  # Gradual penalty
         
         # Keep weights bounded
         self.policy.normalize()
         for weights in self.context_weights.values():
-            for k in weights:
-                weights[k] = np.clip(weights[k], 0.1, 0.9)
+            for k in ["explore", "exploit", "conserve"]:
+                if k in weights:
+                    weights[k] = np.clip(weights[k], 0.1, 0.9)
+    
+    def _get_action_by_expected_utility(self, context_key: str) -> AgentAction:
+        """
+        UPGRADED: Experience-driven action selection.
+        
+        Compare expected value of each action based on past outcomes.
+        Returns the action with highest learned utility.
+        """
+        context_prefs = self.context_weights.get(context_key, {
+            "explore": 0.5, "exploit": 0.5, "conserve": 0.5
+        })
+        
+        # Calculate expected utility from recent outcomes
+        explore_value = self._calculate_action_value(AgentAction.EXPLORE, context_key)
+        exploit_value = self._calculate_action_value(AgentAction.EXPLOIT, context_key)
+        conserve_value = self._calculate_action_value(AgentAction.CONSERVE, context_key)
+        
+        # Select action with highest expected value
+        values = {
+            AgentAction.EXPLORE: explore_value,
+            AgentAction.EXPLOIT: exploit_value,
+            AgentAction.CONSERVE: conserve_value
+        }
+        
+        best_action = max(values, key=values.get)
+        
+        # Log the decision for debugging
+        # print(f"  [K2 DECISION] E={explore_value:.2f} X={exploit_value:.2f} C={conserve_value:.2f} -> {best_action.value}")
+        
+        return best_action
+    
+    def _calculate_action_value(self, action: AgentAction, context_key: str, window: int = 10) -> float:
+        """
+        Calculate expected value of an action from recent outcomes.
+        Returns weighted average: success_rate * avg_energy_gain
+        """
+        # Filter outcomes for this action and similar contexts
+        relevant_outcomes = [
+            o for o in self.state.outcome_history[-window:]
+            if o.action == action
+        ]
+        
+        if not relevant_outcomes:
+            # No data: return neutral prior
+            return 0.5
+        
+        # Calculate average reward (energy change)
+        avg_delta = np.mean([o.delta_energy for o in relevant_outcomes])
+        
+        # Weight by survival rate
+        survival_rate = sum(1 for o in relevant_outcomes if o.survived) / len(relevant_outcomes)
+        
+        # Special bonus for exploration success
+        if action == AgentAction.EXPLORE:
+            success_rate = sum(1 for o in relevant_outcomes if o.exploration_success) / len(relevant_outcomes)
+            return avg_delta * survival_rate * (0.5 + 0.5 * success_rate)
+        
+        return avg_delta * survival_rate
     
     def _get_exploration_probability(self) -> float:
-        """
-        Adaptive exploration: probability based on past success + current state.
-        """
-        mode = self._get_exploration_mode()
-        
-        if mode == ExplorationMode.DISABLED:
-            return 0.0
-        
-        # Base probability from learned policy
-        base_prob = self.policy.explore
-        
-        # Adjust by recent success rate
-        recent_explores = [
-            o for o in self.state.outcome_history[-20:]
-            if o.action == AgentAction.EXPLORE
-        ]
-        if recent_explores:
-            success_rate = sum(1 for o in recent_explores if o.exploration_success) / len(recent_explores)
-            # If exploration usually fails, reduce probability
-            base_prob *= (0.5 + 0.5 * success_rate)  # Scale 0.5x to 1.0x
-        
-        # Penalize consecutive failures
-        failure_penalty = min(0.3, self.consecutive_exploration_failures * 0.1)
-        base_prob -= failure_penalty
-        
-        # Guarded mode: reduce further
-        if mode == ExplorationMode.GUARDED:
-            base_prob *= 0.5
-        
-        return max(0.0, min(1.0, base_prob))
+        """DEPRECATED: Replaced by expected utility."""
+        return 0.5  # Fallback, not used
     
     def select_action(self, obs: Dict[str, float]) -> AgentAction:
         """K2: Context-aware + learned preferences."""
@@ -286,25 +334,27 @@ class K2_Agent:
         
         # 🔥 K2: ADAPTIVE EXPLORATION FLOOR
         if self.steps_since_explore > 10:
-            explore_prob = self._get_exploration_probability()
-            if np.random.random() < explore_prob and self._get_exploration_mode() != ExplorationMode.DISABLED:
-                self.steps_since_explore = 0
-                return AgentAction.EXPLORE
+            # Use expected utility to decide, not random probability
+            mode = self._get_exploration_mode()
+            if mode != ExplorationMode.DISABLED:
+                # Experience-driven: pick action with highest expected value
+                best_action = self._get_action_by_expected_utility(context_key)
+                if best_action == AgentAction.EXPLORE:
+                    self.steps_since_explore = 0
+                    return AgentAction.EXPLORE
             # Fall through to safe policy
             self.steps_since_explore = 0
         
-        # Normal policy with learned preferences
+        # Normal policy: EXPERIENCE-DRIVEN (not heuristic)
+        # Use expected utility to pick the best action
         if U > self.uncertainty_high and E > self.energy_low:
-            # Uncertain but safe: maybe explore
-            if np.random.random() < context_prefs["explore"]:
-                return AgentAction.EXPLORE
-            return AgentAction.EXPLOIT
+            # Uncertain but safe: use learned preferences
+            return self._get_action_by_expected_utility(context_key)
         elif E < self.energy_low:
             return AgentAction.CONSERVE
         else:
-            # Stable: use highest-weighted action
-            best_action = max(context_prefs, key=context_prefs.get)
-            return AgentAction(best_action)
+            # Stable: use experience-driven selection
+            return self._get_action_by_expected_utility(context_key)
     
     def step(self, env) -> Dict[str, Any]:
         """Execute one step with learning."""
