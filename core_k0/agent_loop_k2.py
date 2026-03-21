@@ -311,10 +311,20 @@ class K2_Agent:
         self.steps_since_explore += 1
         
         # Get context key for learned preferences
-        context_key = self.state.get_context_key(E, U, trend)
-        context_prefs = self.context_weights.get(context_key, {
-            "explore": 0.5, "exploit": 0.5, "conserve": 0.5
-        })
+        context_key = self.state.get_context_key(E, U, trend, self.consecutive_exploration_failures)
+        
+        # FIXED: Handle both dict and PolicyWeights cases consistently
+        weights_data = self.context_weights.get(context_key)
+        if weights_data is None:
+            # No learning yet: use defaults
+            context_prefs = {"explore": 0.5, "exploit": 0.5, "conserve": 0.5}
+        else:
+            # Extract action weights only (handle dict format)
+            context_prefs = {
+                "explore": weights_data.get("explore", 0.5),
+                "exploit": weights_data.get("exploit", 0.5),
+                "conserve": weights_data.get("conserve", 0.5)
+            }
         
         # 🔥 K2: STARVATION TRIGGERS (with learned refinements)
         if E < self.energy_critical:
