@@ -45,6 +45,16 @@ class AgentState:
         self.uncertainty = 1.0 - obs.get('observation_quality', 0.7)
         self.observation_quality = obs.get('observation_quality', 0.7)
 
+    def record_action(self, episode: int, action: AgentAction, utility: float):
+        """Record action and outcome."""
+        self.action_history.append((episode, action, utility))
+        
+        # Keep only recent history
+        if len(self.action_history) > 50:
+            self.action_history = self.action_history[-50:]
+
+
+
 
 class K1Agent:
     """
@@ -138,6 +148,41 @@ class K1Agent:
             }[best_action]
         }
     
+
+    def step(self, env) -> Dict[str, Any]:
+        """Full K1 loop: select → execute → learn."""
+        # 1. Get observation from environment
+        observation = env._generate_observation()
+        
+        # 2. Select action with risk-transformed utility
+        action, meta = self.act(observation, self.episode)
+        
+        # 3. Execute in environment
+        result = env.execute_action(action)
+        
+        # 4. Track outcomes
+        self.episode += 1
+        utility = result.get('utility', 0.0)
+        self.cumulative_reward += utility
+        
+        if result.get('alive', True):
+            self.survival_count += 1
+        else:
+            self.death_count += 1
+        
+        # Record action
+        self.state.record_action(self.episode, action, utility)
+        
+        return {
+            'episode': self.episode - 1,
+            'action': action.value,
+            'alive': result.get('alive', True),
+            'utility': utility,
+            'observation': observation,
+            'risk_aversion': meta.get('risk_aversion', 0.3),
+            'reason': meta.get('reason', '')
+        }
+
     def get_status(self) -> Dict[str, Any]:
         """K1 agent status."""
         from collections import Counter
