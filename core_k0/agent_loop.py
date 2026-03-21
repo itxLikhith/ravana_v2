@@ -205,6 +205,7 @@ class MinimalAgent:
         """K0 agent status."""
         return {
             'episode': self.episode,
+            'survival_count': self.survival_count,
             'survival_rate': self.survival_count / max(1, self.episode),
             'death_count': self.death_count,
             'cumulative_reward': self.cumulative_reward,
