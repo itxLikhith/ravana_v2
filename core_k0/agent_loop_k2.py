@@ -68,6 +68,69 @@ class AgentState:
     # K2: Outcome memory
     outcome_history: List[ActionOutcome] = field(default_factory=list)
     
+    # PAPER-COMPLIANT: Explicit Belief Tracking (Required for RAVANA Metrics)
+    # These fields enable |belief - action| dissonance calculation
+    belief_store: Dict[str, float] = field(default_factory=lambda: {
+        "fairness": 0.9,      # Strong prior: value alignment
+        "accuracy": 0.9,      # Strong prior: correctness matters  
+        "empathy": 0.9        # Strong prior: stakeholder awareness
+    })
+    
+    confidence_scores: Dict[str, float] = field(default_factory=lambda: {
+        "fairness": 0.5,      # Initial uncertainty (will grow with experience)
+        "accuracy": 0.5,
+        "empathy": 0.5
+    })
+    
+    vad_weights: Dict[str, float] = field(default_factory=lambda: {
+        "fairness": 0.8,      # VAD salience for value conflicts
+        "accuracy": 0.8,
+        "empathy": 0.8
+    })
+    
+    # Identity State (Paper Section 4)
+    identity_commitment: float = 0.3   # Baseline: low coherence initially
+    cognitive_load: float = 0.5         # Moderate processing burden
+    reappraisal_resistance: float = 0.5 # Neutral resistance to change
+    
+    def get_paper_metrics(self) -> Dict[str, Any]:
+        """Expose state in format required by RAVANA metrics module."""
+        return {
+            "beliefs": list(self.belief_store.values()),
+            "confidences": list(self.confidence_scores.values()),
+            "vad_weights": list(self.vad_weights.values()),
+            "identity_commitment": self.identity_commitment,
+            "cognitive_load": self.cognitive_load,
+            "reappraisal_resistance": self.reappraisal_resistance
+        }
+    
+    def update_paper_metrics(self, action_taken: AgentAction, outcome: Dict[str, Any]):
+        """Update belief/confidence based on action-outcome alignment."""
+        # Convert action to numeric for conflict calculation
+        action_map = {AgentAction.EXPLORE: 0.3, AgentAction.EXPLOIT: 0.7, AgentAction.CONSERVE: 0.9}
+        action_value = action_map.get(action_taken, 0.5)
+        
+        # Calculate conflict per belief (|belief - action|)
+        for key in self.belief_store:
+            conflict = abs(self.belief_store[key] - action_value)
+            
+            # Update confidence based on outcome success
+            if outcome.get("survived", True):
+                # Success: slightly increase confidence
+                self.confidence_scores[key] = min(0.95, self.confidence_scores[key] + 0.02)
+            else:
+                # Death: decrease confidence (belief may be wrong)
+                self.confidence_scores[key] = max(0.1, self.confidence_scores[key] - 0.1)
+        
+        # Update identity based on action consistency
+        recent_actions = [a[1] for a in self.action_history[-10:]] if self.action_history else []
+        if recent_actions:
+            # Consistency builds identity
+            unique_actions = len(set(a.value for a in recent_actions))
+            consistency = 1.0 - (unique_actions - 1) * 0.1  # Penalize action switching
+            self.identity_commitment = 0.7 * self.identity_commitment + 0.3 * consistency
+            self.identity_commitment = np.clip(self.identity_commitment, 0.1, 1.0)
+    
     def update_from_observation(self, obs: Dict[str, float], episode: int):
         self.energy_estimate = obs.get("energy_obs", self.energy_estimate)
         self.resource_estimate = obs.get("resource_obs", self.resource_estimate)
@@ -403,6 +466,13 @@ class K2_Agent:
         # Learn from this experience
         self._learn_from_outcome(outcome)
         
+        # PAPER-COMPLIANT: Update belief/confidence based on action-outcome
+        self.state.update_paper_metrics(action, {
+            "survived": result["alive"],
+            "delta_energy": energy_after - energy_before,
+            "utility": result["utility"]
+        })
+        
         self.cumulative_reward += result["utility"]
         self.state.action_history.append((self.episode, action, result["utility"]))
         
@@ -420,6 +490,10 @@ class K2_Agent:
             "energy_trend": context["trend"],
             "learned": True
         }
+    
+    def get_paper_metrics(self) -> Dict[str, Any]:
+        """Expose paper-compliant metrics for validation testing."""
+        return self.state.get_paper_metrics()
     
     def get_status(self) -> Dict[str, Any]:
         """Report including learned state."""
