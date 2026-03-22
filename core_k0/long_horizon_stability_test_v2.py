@@ -257,42 +257,101 @@ class LongHorizonStabilityTest:
         }
     
     def run_episode(self, agent: K2_Agent, env: ResourceSurvivalEnv, episode: int, phase: int) -> EpisodeRecord:
-        """Execute single episode with metric logging."""
+        """Execute single episode with metric logging.
+        
+        CRITICAL: Capture metrics BEFORE learning update to measure conflict state.
+        """
         
         # Get environment type from scheduler
         env_type = self.scheduler.get_phase(episode)
         
-        # Run agent step
+        # === STEP 1: PERCEIVE ===
         obs = env._generate_observation()
-        action = agent.select_action(obs)
-        result = env.execute_action(action)
         
-        # Record outcome for learning
-        if hasattr(agent, '_record_outcome'):
-            agent._record_outcome(env, action, result)
-        
-        # Compute metrics every 10 episodes (expensive)
-        if episode % 10 == 0:
-            metrics = self._compute_metrics(agent, env.history if hasattr(env, 'history') else [])
+        # === STEP 2: DECIDE (pre-decision state capture) ===
+        # Capture metrics BEFORE action selection to get pre-conflict state
+        if episode == 0:
+            # EP0: Use paper baseline (untested agent, high conflict, low identity)
+            pre_metrics = {
+                'dissonance_D': 0.8,  # Paper: high initial conflict
+                'identity_strength_I': 0.3,  # Paper: low baseline identity
+                'energy': obs.get('energy_obs', 0.5),
+                'uncertainty': obs.get('observation_quality', 0.5),
+                'trend': 0.0
+            }
+        elif episode % 10 == 0:
+            # Every 10 episodes: compute actual metrics
+            pre_metrics = self._compute_metrics(agent, env.history if hasattr(env, 'history') else [])
         else:
-            # Use previous metrics with small update
+            # Other episodes: use previous with slight decay
             if self.episode_records:
                 prev = self.episode_records[-1]
-                metrics = {
-                    'dissonance_D': prev.dissonance_D,
+                pre_metrics = {
+                    'dissonance_D': prev.dissonance_D * 0.99,  # Slight decay
                     'identity_strength_I': prev.identity_strength_I,
-                    'energy': result['true_energy'],
-                    'uncertainty': 0.5,
+                    'energy': obs.get('energy_obs', 0.5),
+                    'uncertainty': obs.get('observation_quality', 0.5),
                     'trend': 0.0
                 }
             else:
-                metrics = {
-                    'dissonance_D': 0.8,  # Paper: starts high
-                    'identity_strength_I': 0.3,  # Paper: starts low
-                    'energy': result['true_energy'],
-                    'uncertainty': 0.5,
+                pre_metrics = {
+                    'dissonance_D': 0.8,
+                    'identity_strength_I': 0.3,
+                    'energy': obs.get('energy_obs', 0.5),
+                    'uncertainty': obs.get('observation_quality', 0.5),
                     'trend': 0.0
                 }
+        
+        # === STEP 3: ACT ===
+        action = agent.select_action(obs)
+        
+        # === STEP 4: EXECUTE ===
+        result = env.execute_action(action)
+        
+        # === STEP 5: LEARN (after metric capture) ===
+        # Record outcome AFTER metrics captured — this updates internal state
+        if hasattr(agent, 'state') and hasattr(agent.state, 'record_outcome'):
+            # Create outcome object
+            from core_k0.agent_loop_k2 import ActionOutcome
+            energy_before = obs.get('energy_obs', 0.5)
+            energy_after = result['true_energy']
+            outcome = ActionOutcome(
+                episode=episode,
+                context={
+                    'energy': energy_before,
+                    'uncertainty': obs.get('observation_quality', 0.5),
+                    'trend': agent.state.get_energy_trend(5) if hasattr(agent.state, 'get_energy_trend') else 0,
+                    'regime': env_type
+                },
+                action=action,
+                energy_before=energy_before,
+                energy_after=energy_after,
+                delta_energy=energy_after - energy_before,
+                survived=result['alive'],
+                exploration_success=(action == AgentAction.EXPLORE and energy_after > energy_before)
+            )
+            agent.state.record_outcome(outcome)
+            
+        # === STEP 6: UPDATE (after metric capture) ===
+        # Update paper metrics AFTER capturing conflict state
+        if hasattr(agent.state, 'update_paper_metrics'):
+            agent.state.update_paper_metrics(action, {
+                'survived': result['alive'],
+                'delta_energy': result['true_energy'] - obs.get('energy_obs', 0.5),
+                'utility': result['utility']
+            })
+        
+        return EpisodeRecord(
+            episode=episode,
+            phase=phase,
+            environment_type=env_type,
+            dissonance_D=pre_metrics['dissonance_D'],
+            identity_strength_I=pre_metrics['identity_strength_I'],
+            energy=result['true_energy'],
+            action_taken=action.value,
+            utility=result['utility'],
+            alive=result['alive']
+        )
         
         return EpisodeRecord(
             episode=episode,
