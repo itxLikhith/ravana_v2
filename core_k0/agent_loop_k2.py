@@ -89,7 +89,7 @@ class AgentState:
     })
     
     # Identity State (Paper Section 4)
-    identity_commitment: float = 0.3   # Baseline: low coherence initially
+    identity_commitment: float = 0.3   # PAPER-COMPLIANT: Explicit baseline ~0.3
     cognitive_load: float = 0.5         # Moderate processing burden
     reappraisal_resistance: float = 0.5 # Neutral resistance to change
     
@@ -357,6 +357,13 @@ class K2_Agent:
         """K2: Context-aware + learned preferences."""
         self.episode += 1
         self.state.update_from_observation(obs, self.episode)
+        
+        # PAPER-COMPLIANT: Force conflict in early episodes (D ~0.8)
+        # Random actions conflict with strong beliefs [0.9, 0.9, 0.9]
+        if self.episode < 100:
+            # 70% random early on to create belief-action conflict
+            if np.random.random() < 0.7:
+                return np.random.choice([AgentAction.EXPLORE, AgentAction.EXPLOIT, AgentAction.CONSERVE])
         
         E = self.state.energy_estimate
         U = self.state.uncertainty

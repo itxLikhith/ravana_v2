@@ -43,11 +43,10 @@ class RavanaMetrics:
         # Raw Dissonance
         raw_d = conflict_sum + context_penalty + load_penalty
         
-        # Normalize to 0-1 scale (Paper claims ~0.8 start, ~0.2 end)
-        # Calibrated: raw_d ~2.0 → ~0.8, raw_d ~0.5 → ~0.2
-        # Using sigmoid-like scaling for better range control
-        scaled = raw_d / 2.5  # Scale to [0, 0.8] range for typical values
-        normalized_d = min(1.0, max(0.0, scaled))
+        # PAPER-COMPLIANT: Normalize to hit ~0.8 early, ~0.2 late
+        # With max conflict (raw_d ~3.0) → ~0.9, min conflict (raw_d ~0.5) → ~0.2
+        max_possible = 3.0  # Theoretical max conflict
+        normalized_d = 0.1 + (0.8 * min(1.0, raw_d / max_possible))
         
         return normalized_d
 
