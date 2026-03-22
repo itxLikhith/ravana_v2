@@ -52,3 +52,19 @@ class EnvironmentScheduler:
             env.cognitive_load_pressure = 0.7
             
         return phase
+    
+    def get_state(self):
+        """Get current scheduler state."""
+        return {
+            'current_regime': self.current_phase,
+            'phase_duration': self.phase_duration,
+            'noise_level': 0.1 if self.current_phase == 'stable' else 0.3
+        }
+    
+    def step(self, episode):
+        """Update scheduler state for episode."""
+        self.current_phase = self.get_phase(episode)
+    
+    def reset(self):
+        """Reset scheduler to initial state."""
+        self.current_phase = 'stable'
