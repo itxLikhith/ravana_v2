@@ -104,8 +104,53 @@ class LongHorizonStabilityTest:
         print(f"  Output: {output_dir}")
     
     def _compute_metrics(self, agent, env_history: List[Dict]) -> Dict[str, float]:
-        """Compute paper-compliant metrics from agent state."""
+        """Compute paper-compliant metrics using agent.get_paper_metrics()."""
         
+        # Use paper-compliant metrics from agent
+        if hasattr(agent, 'get_paper_metrics'):
+            paper_state = agent.get_paper_metrics()
+            
+            # Current action (last taken)
+            if hasattr(agent, 'state') and agent.state.action_history:
+                last_action = agent.state.action_history[-1][1]
+            else:
+                last_action = AgentAction.CONSERVE
+            
+            # Convert action to numeric for conflict calculation
+            action_map = {AgentAction.EXPLORE: 0.3, AgentAction.EXPLOIT: 0.7, AgentAction.CONSERVE: 0.9}
+            action_value = action_map.get(last_action, 0.5)
+            
+            # Calculate Dissonance with paper-compliant formula
+            d_score = self.metrics.calculate_dissonance(
+                beliefs=paper_state['beliefs'],
+                actions=[action_value] * len(paper_state['beliefs']),
+                confidences=paper_state['confidences'],
+                vad_weights=paper_state['vad_weights'],
+                context_mismatch=0.2,  # Fixed baseline
+                identity_violation=0.0,  # Start low
+                cognitive_load=paper_state['cognitive_load'],
+                reappraisal_resistance=paper_state['reappraisal_resistance']
+            )
+            
+            # Calculate Identity Strength
+            i_score = self.metrics.calculate_identity_strength(
+                commitment_history=[paper_state['identity_commitment']],
+                volatility_history=[0.1],
+                context_stability=0.5
+            )
+            
+            return {
+                'dissonance_D': d_score,
+                'identity_strength_I': i_score,
+                'context_mismatch': 0.2,
+                'identity_violation': 0.0,
+                'cognitive_load': paper_state['cognitive_load'],
+                'reappraisal_resistance': paper_state['reappraisal_resistance'],
+                'beliefs': paper_state['beliefs'],
+                'action_value': action_value
+            }
+        
+        # Fallback: use old proxy logic if get_paper_metrics not available
         # Extract beliefs from agent state
         if hasattr(agent, 'state') and hasattr(agent.state, 'outcome_history'):
             recent_outcomes = agent.state.outcome_history[-20:]
@@ -348,6 +393,11 @@ class LongHorizonStabilityTest:
         phases = []
         phase_length = self.checkpoint_interval
         n_phases = self.n_episodes // phase_length
+        
+        # Handle dry-run / small episode counts: ensure at least 1 phase
+        if n_phases == 0:
+            n_phases = 1
+            phase_length = self.n_episodes
         
         env_sequence = ['stable', 'scarce', 'stable', 'volatile', 'latent_regime', 'stable']
         
