@@ -59,7 +59,8 @@ class IdentityEngine:
         resolution_delta: float,
         resolution_success: bool,
         regulated_identity_delta: float,  # From governor
-        current_dissonance: float
+        current_dissonance: float,
+        resolution_streak: int = 0  # New parameter
     ) -> float:
         """
         Compute identity update with all dynamics.
@@ -76,7 +77,12 @@ class IdentityEngine:
         
         # Resolution bonus: Successful resolution strengthens identity
         if resolution_success and resolution_delta > 0.05:
-            delta += 0.12  # Increased bonus from 0.08
+            # Base bonus
+            base_bonus = 0.12
+            
+            # Streak multiplier: +20% per streak point, capped at 2x
+            streak_multiplier = min(2.0, 1.0 + (resolution_streak * 0.2))
+            delta += base_bonus * streak_multiplier
         
         # Recovery bias: Low identity gets growth boost
         if self.state.strength < 0.5:

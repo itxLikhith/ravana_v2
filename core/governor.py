@@ -27,7 +27,7 @@ class GovernorConfig:
     # Hard constraints (non-negotiable)
     max_dissonance: float = 0.95
     min_dissonance: float = 0.15
-    target_dissonance: float = 0.40  # Lowered from 0.60
+    target_dissonance: float = 0.30  # Paper target
     max_identity: float = 0.95
     soft_limit: float = 0.70  # Start pressure here
     boundary_k: float = 12.0  # Slightly steeper
@@ -641,9 +641,9 @@ class Governor:
         distance_from_center = current_d - target
         
         # Only apply when far from center
-        if abs(distance_from_center) > 0.15:
-            # Gentle pull toward center
-            k_center = 0.1
+        if abs(distance_from_center) > 0.05: # Lowered threshold from 0.15
+            # Stronger pull toward center
+            k_center = 0.2 # Increased from 0.1
             center_force = -distance_from_center * k_center
             dd += center_force
             

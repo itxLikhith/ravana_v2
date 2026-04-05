@@ -100,7 +100,8 @@ class StateManager:
             resolution_delta=abs(desired_d_delta),
             resolution_success=est_res_success,
             regulated_identity_delta=0.0,
-            current_dissonance=pre_d
+            current_dissonance=pre_d,
+            resolution_streak=self.state.resolution_streak
         )
         identity_delta = desired_identity - pre_i
         
@@ -140,7 +141,8 @@ class StateManager:
             resolution_delta=abs(regulated.dissonance_delta),
             resolution_success=(regulated.dissonance_delta < 0 and correctness),
             regulated_identity_delta=regulated.identity_delta,
-            current_dissonance=pre_d
+            current_dissonance=pre_d,
+            resolution_streak=self.state.resolution_streak
         )
         new_identity = np.clip(
             regulated_identity,
