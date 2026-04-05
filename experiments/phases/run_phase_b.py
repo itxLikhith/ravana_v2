@@ -27,16 +27,17 @@ def main():
         min_dissonance=0.15,
         max_identity=0.95,
         min_identity=0.10,
-        dissonance_target=0.45,
-        identity_target=0.65,
+        target_dissonance=0.30, # Paper target
+        dissonance_target=0.30, 
+        identity_target=0.85,   # Paper target
     ))
     
     # 🧠 Phase B: Add adaptation layer
     adaptation = PolicyTweakLayer(AdaptationConfig(
-        learning_rate=0.01,
-        clamp_penalty=2.0,      # Strong penalty for needing correction
-        exploration_bonus=0.15, # Encourage healthy dissonance
-        max_tweak=0.03,         # Conservative adjustments
+        learning_rate=0.05,
+        clamp_penalty=5.0,
+        exploration_bonus=0.20,
+        max_tweak=0.05,
     ))
     
     # Bridge adaptation into governor flow
@@ -44,16 +45,20 @@ def main():
     
     # Create resolution and identity engines
     resolution = ResolutionEngine(partial_threshold=0.15)
-    identity = IdentityEngine(initial_strength=0.5)
+    identity = IdentityEngine(
+        initial_strength=0.5,
+        recovery_bias=0.1,
+        stability_threshold=0.85
+    )
     
     # Create state manager (Phase B: uses adaptive bridge)
     manager = PhaseBStateManager(adaptive_bridge, resolution, identity)
     
     # Training config
     config = TrainingConfig(
-        total_episodes=2000,  # More episodes to see learning
-        log_interval=100,
-        debug_first_n=20,
+        total_episodes=10000,  # 10K episodes for paper-grade convergence
+        log_interval=500,      # Less frequent logs
+        debug_first_n=0,
     )
     
     # Run training
@@ -90,17 +95,23 @@ class PhaseBStateManager:
         pre_d = self.state.dissonance
         pre_i = self.state.identity
         
-        # Resolution computation
+        # 1. PREDICT: Estimate what WOULD happen to dissonance
+        # If correct: dissonance should drop
+        # If wrong: dissonance should rise
+        expected_change = -0.1 if correctness else 0.15
+        estimated_post_d = np.clip(pre_d + expected_change, 0.15, 0.95)
+        
+        # 2. RESOLUTION: Compute what the resolution engine THINKS
         resolution_result = self.resolution.compute(
             episode=self.state.episode,
             prev_dissonance=pre_d,
-            current_dissonance=pre_d,
+            current_dissonance=estimated_post_d, # Pass estimated NEW state
             correctness=correctness,
             difficulty=difficulty,
             source="phase_b_step"
         )
         
-        # Identity computation
+        # 3. IDENTITY: Compute desired update from resolution delta
         desired_identity = self.identity.compute_update(
             resolution_delta=resolution_result["delta"],
             resolution_success=resolution_result["full_resolution"],

@@ -27,18 +27,18 @@ class GovernorConfig:
     # Hard constraints (non-negotiable)
     max_dissonance: float = 0.95
     min_dissonance: float = 0.15
-    target_dissonance: float = 0.60  # Sweet spot for learning
+    target_dissonance: float = 0.40  # Lowered from 0.60
     max_identity: float = 0.95
     soft_limit: float = 0.70  # Start pressure here
-    boundary_k: float = 10.0  # Pressure curve steepness
+    boundary_k: float = 12.0  # Slightly steeper
     min_pressure: float = 0.2  # Minimum allowed pressure
     min_identity: float = 0.10
     
     # Regulation parameters
-    dissonance_target: float = 0.45
-    identity_target: float = 0.65
-    exploration_threshold: float = 0.30
-    resolution_threshold: float = 0.70
+    dissonance_target: float = 0.35  # Closer to paper's 0.3
+    identity_target: float = 0.85   # Target paper's 0.85
+    exploration_threshold: float = 0.25
+    resolution_threshold: float = 0.60  # Trigger sooner
     
     # Recovery parameters
     recovery_boost: float = 0.15

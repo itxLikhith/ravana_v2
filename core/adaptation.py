@@ -15,12 +15,12 @@ from collections import deque
 class AdaptationConfig:
     """Configuration for adaptation learning."""
     # Learning rates
-    learning_rate: float = 0.01
-    momentum: float = 0.9
+    learning_rate: float = 0.05  # Increased from 0.01
+    momentum: float = 0.8       # Slightly lower momentum for faster response
     
     # Dual objective weights
-    exploration_bonus: float = 0.1  # Encourage healthy dissonance
-    clamp_penalty: float = 1.0      # Penalize needing correction
+    exploration_bonus: float = 0.2  # Encourage healthy dissonance
+    clamp_penalty: float = 5.0      # Significantly increased (was 1.0)
     
     # State encoding
     state_window: int = 5  # Episodes of history for pattern

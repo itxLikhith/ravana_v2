@@ -42,9 +42,9 @@ class IdentityEngine:
     def __init__(
         self,
         initial_strength: float = 0.5,
-        momentum_factor: float = 0.3,
-        recovery_bias: float = 0.05,
-        stability_threshold: float = 0.7
+        momentum_factor: float = 0.6, # Increased from 0.3
+        recovery_bias: float = 0.1,
+        stability_threshold: float = 0.85
     ):
         self.state = IdentityState(strength=initial_strength)
         self.momentum_factor = momentum_factor
@@ -70,27 +70,27 @@ class IdentityEngine:
         delta = regulated_identity_delta
         
         # Momentum: Continue previous trend
-        if abs(self.last_delta) > 0.001:
+        if abs(self.last_delta) > 0.0001:
             momentum = np.sign(self.last_delta) * self.momentum_factor * abs(self.last_delta)
             delta += momentum
         
         # Resolution bonus: Successful resolution strengthens identity
         if resolution_success and resolution_delta > 0.05:
-            delta += 0.02  # Small bonus for successful resolution
+            delta += 0.12  # Increased bonus from 0.08
         
         # Recovery bias: Low identity gets growth boost
-        if self.state.strength < 0.3:
-            recovery_boost = self.recovery_bias * (0.3 - self.state.strength)
+        if self.state.strength < 0.5:
+            recovery_boost = self.recovery_bias * (0.5 - self.state.strength)
             delta += recovery_boost
         
         # Stability: High identity resists change
         if self.state.strength > self.stability_threshold:
-            stability_damping = (self.state.strength - self.stability_threshold) * 0.3
+            stability_damping = (self.state.strength - self.stability_threshold) * 0.05 # Reduced from 0.1
             delta *= (1.0 - stability_damping)
         
         # Dissonance coupling: High dissonance weakens identity growth
-        if current_dissonance > 0.7:
-            stress_penalty = (current_dissonance - 0.7) * 0.1
+        if current_dissonance > 0.8: # Increased threshold from 0.7
+            stress_penalty = (current_dissonance - 0.8) * 0.05 # Reduced from 0.1
             delta -= stress_penalty
         
         # Compute new strength

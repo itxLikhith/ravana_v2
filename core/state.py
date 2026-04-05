@@ -85,21 +85,18 @@ class StateManager:
         pre_d = self.state.dissonance
         pre_i = self.state.identity
         
-        # 1. RESOLUTION: Compute what happened
-        resolution_result = self.resolution.compute(
-            episode=self.state.episode,
-            prev_dissonance=pre_d,
-            current_dissonance=pre_d,  # Will be updated after governor
-            correctness=correctness,
-            difficulty=difficulty,
-            source="episode_step"
-        )
+        # 1. ESTIMATE: Predict desired delta from outcome
+        # If correct: dissonance should drop. If wrong: it should rise.
+        # This is what the system WANTS to do.
+        desired_d_delta = -0.1 if correctness else 0.15
         
-        # 2. IDENTITY: Compute desired update
+        # 2. IDENTITY: Compute desired update based on ESTIMATED resolution
+        # We use a placeholder for success here, governor will regulate final
+        est_res_success = (desired_d_delta < 0 and correctness)
         desired_identity = self.identity.compute_update(
-            resolution_delta=resolution_result["delta"],
-            resolution_success=resolution_result["full_resolution"],
-            regulated_identity_delta=0.0,  # Start with 0, governor will modify
+            resolution_delta=abs(desired_d_delta),
+            resolution_success=est_res_success,
+            regulated_identity_delta=0.0,
             current_dissonance=pre_d
         )
         identity_delta = desired_identity - pre_i
@@ -108,10 +105,10 @@ class StateManager:
         from .governor import CognitiveSignals
         
         signals = CognitiveSignals(
-            dissonance_delta=resolution_result["delta"],
+            dissonance_delta=desired_d_delta,
             identity_delta=identity_delta,
-            exploration_drive=0.0,  # Simplified for Phase A
-            resolution_potential=resolution_result["partial_credit"],
+            exploration_drive=0.0,
+            resolution_potential=0.1 if correctness else 0.0,
             source="state_step"
         )
         
@@ -122,7 +119,7 @@ class StateManager:
             episode=self.state.episode
         )
         
-        # 4. APPLY: Governor-approved changes only
+        # 4. APPLY: Governor-approved changes
         new_dissonance = np.clip(
             pre_d + regulated.dissonance_delta,
             self.governor.config.min_dissonance,
@@ -131,8 +128,8 @@ class StateManager:
         
         # Identity update: use governor-regulated delta
         regulated_identity = self.identity.compute_update(
-            resolution_delta=resolution_result["delta"],
-            resolution_success=resolution_result["full_resolution"],
+            resolution_delta=abs(regulated.dissonance_delta),
+            resolution_success=(regulated.dissonance_delta < 0 and correctness),
             regulated_identity_delta=regulated.identity_delta,
             current_dissonance=pre_d
         )
@@ -142,10 +139,21 @@ class StateManager:
             self.governor.config.max_identity
         )
         
-        # 5. WISDOM: Check for generation
+        # 5. RESOLUTION: Compute what ACTUALLY happened
+        # Now we pass actual pre vs post dissonance
+        resolution_result = self.resolution.compute(
+            episode=self.state.episode,
+            prev_dissonance=pre_d,
+            current_dissonance=new_dissonance,
+            correctness=correctness,
+            difficulty=difficulty,
+            source="episode_step"
+        )
+        
+        # 6. WISDOM: Check for generation
         wisdom_generated = resolution_result["wisdom_generated"]
         
-        # 6. UPDATE STATE
+        # 7. UPDATE STATE
         self.state = CognitiveState(
             dissonance=new_dissonance,
             identity=new_identity,
@@ -171,7 +179,7 @@ class StateManager:
         }
         self.history.append(step_record)
         
-        # 7. MEMORY: Integrate new data
+        # 8. MEMORY: Integrate new data
         self.memory.process_step(
             episode_data=step_record,
             state_snapshot=self.state.snapshot()
