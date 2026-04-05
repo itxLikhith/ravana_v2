@@ -39,7 +39,8 @@ class TrainingPipeline:
         self.metrics: List[Dict] = []
         
         # Output
-        self.output_dir = Path("/home/workspace/ravana_v2/results")
+        project_root = Path(__file__).resolve().parent.parent
+        self.output_dir = project_root / "results"
         self.output_dir.mkdir(exist_ok=True)
         
     def _compute_difficulty(self, episode: int) -> float:

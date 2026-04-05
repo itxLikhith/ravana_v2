@@ -15,7 +15,8 @@ plt.style.use('seaborn-v0_8-whitegrid')
 
 def load_experiments():
     """Load experiment results."""
-    path = Path("/home/workspace/ravana_v2/results/experiment_comparison.json")
+    project_root = Path(__file__).resolve().parent.parent
+    path = project_root / "results" / "experiment_comparison.json"
     if not path.exists():
         print("Run experiments first: python experiments/runner.py")
         return None
@@ -113,7 +114,8 @@ def main():
     if not results:
         return
     
-    output_dir = Path("/home/workspace/ravana_v2/results")
+    project_root = Path(__file__).resolve().parent.parent
+    output_dir = project_root / "results"
     output_dir.mkdir(exist_ok=True)
     
     fig = plot_intelligence_formation(results, save_path=output_dir / "intelligence_formation.png")

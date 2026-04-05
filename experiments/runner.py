@@ -10,7 +10,8 @@ from typing import Dict, List, Any
 from dataclasses import dataclass
 
 import sys
-sys.path.insert(0, '/home/workspace/ravana_v2')
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from core import Governor, GovernorConfig, ResolutionEngine, IdentityEngine, StateManager
 from core.adaptation import PolicyTweakLayer, AdaptiveGovernorBridge, AdaptationConfig
@@ -213,7 +214,8 @@ def compare_experiments(results: List[ExperimentResult]) -> str:
 
 def main():
     """Run all three experiments."""
-    results_dir = Path("/home/workspace/ravana_v2/results")
+    project_root = Path(__file__).resolve().parent.parent
+    results_dir = project_root / "results"
     results_dir.mkdir(exist_ok=True)
     
     # Run experiments

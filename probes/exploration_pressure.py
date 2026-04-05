@@ -5,7 +5,8 @@ Increase chaos by 20-30%, verify system stays bounded but adapts
 """
 
 import sys
-sys.path.insert(0, '/home/workspace/ravana_v2')
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from core.governor import Governor, GovernorConfig, CognitiveSignals
 from core.state import CognitiveState

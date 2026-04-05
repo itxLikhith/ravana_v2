@@ -60,10 +60,12 @@ class StateManager:
     """
     
     def __init__(self, governor, resolution_engine, identity_engine):
+        from .memory import RavanaMemorySystem
         self.state = CognitiveState()
         self.governor = governor
         self.resolution = resolution_engine
         self.identity = identity_engine
+        self.memory = RavanaMemorySystem()
         
         # History for analysis
         self.history: list = []
@@ -168,6 +170,12 @@ class StateManager:
             "reason": regulated.reason,
         }
         self.history.append(step_record)
+        
+        # 7. MEMORY: Integrate new data
+        self.memory.process_step(
+            episode_data=step_record,
+            state_snapshot=self.state.snapshot()
+        )
         
         if debug:
             self._log_step(step_record)

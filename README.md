@@ -105,8 +105,8 @@ probes/
 training/
   pipeline.py        — Phase A training orchestration
 
-run_training.py      — Phase A entry point
-run_phase_b.py       — 🆕 Phase B entry point (adaptive)
+experiments/runs/run_training.py      — Phase A entry point
+experiments/phases/run_phase_b.py       — 🆕 Phase B entry point (adaptive)
 ```
 
 ---
@@ -115,12 +115,12 @@ run_phase_b.py       — 🆕 Phase B entry point (adaptive)
 
 **Phase A** (stable physics):
 ```bash
-python run_training.py
+python experiments/runs/run_training.py
 ```
 
 **Phase B** (adaptive intelligence):
 ```bash
-python run_phase_b.py
+python experiments/phases/run_phase_b.py
 ```
 
 ---

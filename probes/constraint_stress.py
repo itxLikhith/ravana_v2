@@ -5,7 +5,8 @@ Force D → 0.85 repeatedly, verify active regulation vs passive clipping
 """
 
 import sys
-sys.path.insert(0, '/home/workspace/ravana_v2')
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from core.governor import Governor, GovernorConfig, CognitiveSignals
 

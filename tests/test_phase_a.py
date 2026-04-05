@@ -4,7 +4,9 @@ Verify core architecture before full training.
 """
 
 import sys
-sys.path.insert(0, '/home/workspace/ravana_v2')
+import os
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from core import Governor, ResolutionEngine, IdentityEngine, StateManager
 
