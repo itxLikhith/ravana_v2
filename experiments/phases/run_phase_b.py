@@ -27,9 +27,11 @@ def main():
         min_dissonance=0.15,
         max_identity=0.95,
         min_identity=0.10,
-        target_dissonance=0.30, # Paper target
+        target_dissonance=0.30, 
         dissonance_target=0.30, 
-        identity_target=0.85,   # Paper target
+        identity_target=0.85,
+        use_smoothed_dissonance=True, # Enable smoothing
+        smoothing_alpha=0.15          # Smooth alpha
     ))
     
     # 🧠 Phase B: Add adaptation layer
@@ -52,7 +54,7 @@ def main():
     )
     
     # Create state manager (Phase B: uses adaptive bridge)
-    manager = PhaseBStateManager(adaptive_bridge, resolution, identity)
+    manager = PhaseBStateManager(adaptive_bridge, resolution, identity, smoothing_alpha=0.15)
     
     # Training config
     config = TrainingConfig(
@@ -81,23 +83,23 @@ class PhaseBStateManager:
     State manager for Phase B with adaptive governor bridge.
     """
     
-    def __init__(self, adaptive_bridge, resolution_engine, identity_engine):
+    def __init__(self, adaptive_bridge, resolution_engine, identity_engine, smoothing_alpha=0.2):
         from core.state import CognitiveState
         self.state = CognitiveState()
         self.bridge = adaptive_bridge
         self.governor = adaptive_bridge.governor  # Expose for pipeline access
         self.resolution = resolution_engine
         self.identity = identity_engine
+        self.smoothing_alpha = smoothing_alpha
         self.history = []
         
     def step(self, correctness, difficulty=0.5, debug=False):
         """Execute one adaptive cognitive step."""
         pre_d = self.state.dissonance
         pre_i = self.state.identity
+        pre_ema = self.state.dissonance_ema
         
         # 1. PREDICT: Estimate what WOULD happen to dissonance
-        # If correct: dissonance should drop
-        # If wrong: dissonance should rise
         expected_change = -0.1 if correctness else 0.15
         estimated_post_d = np.clip(pre_d + expected_change, 0.15, 0.95)
         
@@ -105,7 +107,7 @@ class PhaseBStateManager:
         resolution_result = self.resolution.compute(
             episode=self.state.episode,
             prev_dissonance=pre_d,
-            current_dissonance=estimated_post_d, # Pass estimated NEW state
+            current_dissonance=estimated_post_d, 
             correctness=correctness,
             difficulty=difficulty,
             source="phase_b_step"
@@ -130,7 +132,10 @@ class PhaseBStateManager:
             source="phase_b"
         )
         
-        regulated = self.bridge.step(pre_d, pre_i, signals, self.state.episode)
+        # Use smoothed dissonance for governor if enabled
+        reg_d = pre_ema if getattr(self.governor.config, 'use_smoothed_dissonance', False) else pre_d
+        
+        regulated = self.bridge.step(reg_d, pre_i, signals, self.state.episode)
         
         # Apply regulated changes
         new_dissonance = np.clip(
@@ -138,6 +143,9 @@ class PhaseBStateManager:
             self.governor.config.min_dissonance,
             self.governor.config.max_dissonance
         )
+        
+        # Update EMA
+        new_ema = (1 - self.smoothing_alpha) * pre_ema + self.smoothing_alpha * new_dissonance
         
         regulated_identity = self.identity.compute_update(
             resolution_delta=resolution_result["delta"],
@@ -158,6 +166,7 @@ class PhaseBStateManager:
         self.state = CognitiveState(
             dissonance=new_dissonance,
             identity=new_identity,
+            dissonance_ema=new_ema,
             episode=self.state.episode + 1,
             cycle=self.state.cycle + 1,
             accumulated_wisdom=self.state.accumulated_wisdom + wisdom_generated,

@@ -40,6 +40,10 @@ class GovernorConfig:
     exploration_threshold: float = 0.25
     resolution_threshold: float = 0.60  # Trigger sooner
     
+    # Smoothing
+    use_smoothed_dissonance: bool = True  # Enable EMA-based regulation
+    smoothing_alpha: float = 0.2          # EMA alpha (lower = more smoothing)
+    
     # Recovery parameters
     recovery_boost: float = 0.15
     crisis_threshold: float = 0.90

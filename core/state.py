@@ -28,6 +28,7 @@ class CognitiveState:
     # Core metrics
     dissonance: float = 0.5
     identity: float = 0.5
+    dissonance_ema: float = 0.5  # Smoothed dissonance for regulation
     
     # Episode tracking
     episode: int = 0
@@ -45,6 +46,7 @@ class CognitiveState:
         """Return serializable snapshot."""
         return {
             "dissonance": self.dissonance,
+            "dissonance_ema": self.dissonance_ema,
             "identity": self.identity,
             "episode": self.episode,
             "cycle": self.cycle,
@@ -59,13 +61,14 @@ class StateManager:
     ALL state modifications flow through here.
     """
     
-    def __init__(self, governor, resolution_engine, identity_engine):
+    def __init__(self, governor, resolution_engine, identity_engine, smoothing_alpha: float = 0.2):
         from .memory import RavanaMemorySystem
         self.state = CognitiveState()
         self.governor = governor
         self.resolution = resolution_engine
         self.identity = identity_engine
         self.memory = RavanaMemorySystem()
+        self.smoothing_alpha = smoothing_alpha
         
         # History for analysis
         self.history: list = []
@@ -112,8 +115,11 @@ class StateManager:
             source="state_step"
         )
         
+        # Use EMA dissonance if governor prefers
+        reg_d = self.state.dissonance_ema if getattr(self.governor.config, 'use_smoothed_dissonance', False) else pre_d
+        
         regulated = self.governor.regulate(
-            current_dissonance=pre_d,
+            current_dissonance=reg_d,
             current_identity=pre_i,
             signals=signals,
             episode=self.state.episode
@@ -125,6 +131,9 @@ class StateManager:
             self.governor.config.min_dissonance,
             self.governor.config.max_dissonance
         )
+        
+        # Update EMA
+        new_ema = (1 - self.smoothing_alpha) * self.state.dissonance_ema + self.smoothing_alpha * new_dissonance
         
         # Identity update: use governor-regulated delta
         regulated_identity = self.identity.compute_update(
@@ -157,6 +166,7 @@ class StateManager:
         self.state = CognitiveState(
             dissonance=new_dissonance,
             identity=new_identity,
+            dissonance_ema=new_ema,
             episode=self.state.episode + 1,
             cycle=self.state.cycle + 1,
             accumulated_wisdom=self.state.accumulated_wisdom + wisdom_generated,
